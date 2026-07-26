@@ -233,7 +233,7 @@ def render_hero() -> None:
     if encoded:
         layer = (
             f"linear-gradient(rgba(11, 18, 32, 0.78), rgba(11, 18, 32, 0.86)), "
-            f"url('data:image/jpeg;base64,{encoded}')"
+            f"url('data:image/png;base64,{encoded}')"
         )
     else:
         # Clean gradient fallback - the app never crashes on a missing file
