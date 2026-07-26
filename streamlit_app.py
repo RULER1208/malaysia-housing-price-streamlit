@@ -41,7 +41,7 @@ st.set_page_config(
 RESULTS_PATH = Path("model_results.csv")
 DATA_PATH = Path("malaysia_house_price_cleaned.csv")
 MODELS_DIR = Path("models")
-BANNER_PATH = Path("assets/malaysia_housing_banner.jpg")
+BANNER_PATH = Path("assets/malaysia_housing_banner.png")
 
 # Palette (fixed by the design brief)
 BG = "#0B1220"
