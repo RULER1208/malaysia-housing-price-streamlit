@@ -185,13 +185,13 @@ def inject_css() -> None:
         }}
 
         /* Native bordered containers used as cards (widgets render inside) */
-        div[data-testid="stVerticalBlockBorderWrapper"] {
-            background: rgba(30, 41, 59, 0.88);
-            border: 1px solid rgba(148, 163, 184, 0.18) !important;
-            border-radius: 16px;
-            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
-            padding: 0.4rem 0.2rem;
-        }
+div[data-testid="stVerticalBlockBorderWrapper"] {{
+    background: rgba(30, 41, 59, 0.88);
+    border: 1px solid rgba(148, 163, 184, 0.18) !important;
+    border-radius: 16px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+    padding: 0.4rem 0.2rem;
+}}
 
         /* Buttons */
         .stButton > button {{ border-radius: 10px; font-weight: 600; }}
