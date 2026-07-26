@@ -8,6 +8,10 @@ Deploy:           Streamlit Community Cloud (all paths are relative)
 The app loads the trained pipeline selected by cross-validation RMSE
 (training set only) and estimates a township-level median house price.
 It does NOT retrain or modify any model.
+
+Area is used ONLY to look up representative values from the cleaned dataset.
+The trained pipeline still receives exactly five features:
+State, Tenure, Primary_Type, Median_PSF, Transactions.
 """
 
 from __future__ import annotations
@@ -54,6 +58,9 @@ MUTED = "#94A3B8"
 
 # Feature names expected by the trained pipeline - DO NOT CHANGE
 MODEL_FEATURES = ["State", "Tenure", "Primary_Type", "Median_PSF", "Transactions"]
+
+# Sentinel for the "no specific area" option in the Area dropdown
+ALL_AREAS = "All areas in this state"
 
 
 # ---------------------------------------------------------------------------
@@ -185,13 +192,13 @@ def inject_css() -> None:
         }}
 
         /* Native bordered containers used as cards (widgets render inside) */
-div[data-testid="stVerticalBlockBorderWrapper"] {{
-    background: rgba(30, 41, 59, 0.88);
-    border: 1px solid rgba(148, 163, 184, 0.18) !important;
-    border-radius: 16px;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
-    padding: 0.4rem 0.2rem;
-}}
+        div[data-testid="stVerticalBlockBorderWrapper"] {{
+            background: rgba(30, 41, 59, 0.88);
+            border: 1px solid rgba(148, 163, 184, 0.18) !important;
+            border-radius: 16px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+            padding: 0.4rem 0.2rem;
+        }}
 
         /* Buttons */
         .stButton > button {{ border-radius: 10px; font-weight: 600; }}
@@ -315,6 +322,66 @@ def load_resources():
 # ---------------------------------------------------------------------------
 # ANALYSIS HELPERS (pure functions - easy to test)
 # ---------------------------------------------------------------------------
+def area_options(data: pd.DataFrame, state: str) -> list[str]:
+    """Areas available in a state, with the 'all areas' option first."""
+    areas = sorted(data.loc[data["State"] == state, "Area"].dropna().unique())
+    return [ALL_AREAS] + list(areas)
+
+
+def derive_reference(data: pd.DataFrame, state: str, area: str,
+                     ptype: str) -> dict:
+    """Representative Median_PSF and Transactions from the matching records.
+
+    Area is used for LOOKUP ONLY - it is never passed to the model.
+
+    Most Area + Property-type combinations do not exist in the dataset
+    (a typical area carries only about two of the nine property types), so the
+    lookup falls back through progressively broader groups and always reports
+    which level was actually used.
+    """
+    candidates = []
+    if area != ALL_AREAS:
+        candidates.append((
+            f"{area}, {state} · {ptype}",
+            (data["State"] == state) & (data["Area"] == area) &
+            (data["Primary_Type"] == ptype),
+        ))
+        candidates.append((
+            f"{area}, {state} · all property types",
+            (data["State"] == state) & (data["Area"] == area),
+        ))
+    candidates.append((
+        f"{state} · {ptype} (all areas)",
+        (data["State"] == state) & (data["Primary_Type"] == ptype),
+    ))
+    candidates.append((
+        f"{state} · all property types",
+        data["State"] == state,
+    ))
+
+    for position, (label, mask) in enumerate(candidates):
+        subset = data[mask]
+        if not subset.empty:
+            return {
+                "psf": float(subset["Median_PSF"].median()),
+                "transactions": int(round(float(subset["Transactions"].median()))),
+                "n": int(len(subset)),
+                "level": label,
+                "is_exact": position == 0,
+                "records": subset,
+            }
+
+    # Final safety net - should be unreachable because every state has records
+    return {
+        "psf": float(data["Median_PSF"].median()),
+        "transactions": int(round(float(data["Transactions"].median()))),
+        "n": int(len(data)),
+        "level": "whole dataset",
+        "is_exact": False,
+        "records": data,
+    }
+
+
 def psf_reference(data: pd.DataFrame, state: str) -> dict:
     """Median / min / max observed PSF for one state."""
     psf_series = data.loc[data["State"] == state, "Median_PSF"]
@@ -464,6 +531,15 @@ def render_sidebar(model_name: str, record_count: int) -> None:
             """
         )
         st.markdown("---")
+        st.markdown("**How the inputs work**")
+        st.write(
+            "Selecting a state, area and property type looks up representative "
+            "2025 values for price per square foot and transactions. Area is "
+            "used for this lookup only — the model itself receives five "
+            "features: state, tenure, property type, median PSF and "
+            "transactions."
+        )
+        st.markdown("---")
         st.markdown("**Main limitation**")
         st.write(
             "The median price per square foot must already be known for the "
@@ -472,7 +548,7 @@ def render_sidebar(model_name: str, record_count: int) -> None:
         )
         st.markdown("---")
         st.caption(
-            "Academic prototype for BMDS2025 coursework. Built on a static "
+            "Academic prototype for BMDS2003 coursework. Built on a static "
             "2025 dataset, not live market data. Estimates are township-level "
             "medians, not valuations of individual properties, and must not be "
             "used for real financial decisions."
@@ -489,7 +565,7 @@ def main() -> None:
     render_sidebar(model_name, len(data))
     render_hero()
 
-    # --- C. Model performance cards -------------------------------------
+    # --- Model performance cards ----------------------------------------
     card_1, card_2, card_3 = st.columns(3)
     card_1.metric("Selected model", model_name)
     card_2.metric("Test R²", f"{test_r2:.3f}")
@@ -505,7 +581,7 @@ def main() -> None:
         st.session_state.reset_counter = 0
     suffix = st.session_state.reset_counter
 
-    # --- D. Inputs -------------------------------------------------------
+    # --- Location and property inputs ------------------------------------
     st.markdown("#### Property and market information")
     input_card = st.container(border=True)
     with input_card:
@@ -513,43 +589,95 @@ def main() -> None:
         with left:
             state = st.selectbox("State", sorted(data["State"].unique()),
                                  key=f"state_{suffix}")
-            tenure = st.selectbox("Tenure", sorted(data["Tenure"].unique()),
-                                  key=f"tenure_{suffix}")
+            # Area dropdown is keyed on the state so it refreshes when the
+            # state changes. It is a dataset lookup control, not a model input.
+            area = st.selectbox(
+                "Area / township location",
+                area_options(data, state),
+                key=f"area_{state}_{suffix}",
+                help="Used to look up representative 2025 dataset values for "
+                     "this location. Area is not a model feature.",
+            )
         with right:
             ptype = st.selectbox("Property type",
                                  sorted(data["Primary_Type"].unique()),
                                  key=f"ptype_{suffix}")
-            transactions = st.slider(
-                "Transactions in the township", 10,
-                int(data["Transactions"].max()), 20,
-                key=f"txn_{suffix}",
-                help="Recorded market activity: how many transactions the township "
-                     "registered in the dataset year. Use a low value for a quiet "
-                     "area and a high value for an active one.",
+            tenure = st.selectbox("Tenure", sorted(data["Tenure"].unique()),
+                                  key=f"tenure_{suffix}")
+
+        # --- Automatic reference values from the matching records --------
+        ref = derive_reference(data, state, area, ptype)
+
+        st.markdown("**2025 dataset reference values**")
+        ref_1, ref_2, ref_3 = st.columns(3)
+        ref_1.metric("Median PSF (RM)", f"{ref['psf']:,.0f}")
+        ref_2.metric("Transactions", f"{ref['transactions']:,}")
+        ref_3.metric("Matching records", f"{ref['n']:,}")
+
+        if ref["is_exact"]:
+            st.caption(
+                f"Median of {ref['n']} matching record(s) for **{ref['level']}** "
+                "in the cleaned 2025 dataset."
+            )
+        else:
+            st.markdown(
+                f'<div class="mh-note ok">No record matches this exact area and '
+                f'property type, so the reference values come from a broader '
+                f'group: <strong>{ref["level"]}</strong> '
+                f'({ref["n"]:,} record(s)). Most areas in the dataset carry only '
+                f'a few of the nine property types.</div>',
+                unsafe_allow_html=True,
             )
 
-        reference = psf_reference(data, state)
-        psf_left, psf_right = st.columns([3, 1])
-        with psf_left:
-            # Keying on the state resets the slider default when the state changes
-            psf = st.slider(
-                "Median price per square foot (RM)",
-                int(data["Median_PSF"].min()), int(data["Median_PSF"].max()),
-                int(reference["median"]),
-                key=f"psf_{state}_{suffix}",
-                help="The market rate per square foot for the selected area. Look "
-                     "this up from recent listings or a property portal.",
+        # --- Advanced market adjustments (scenario analysis) -------------
+        with st.expander("Advanced market adjustments"):
+            st.caption(
+                "Override the dataset reference values to explore a different "
+                "market scenario. Only these two values are adjustable, because "
+                "the trained pipeline accepts exactly five features."
             )
-        with psf_right:
-            st.metric(f"{state} median PSF", f"RM {reference['median']:,.0f}")
+            adjust_left, adjust_right = st.columns(2)
+            with adjust_left:
+                psf = st.slider(
+                    "Median price per square foot (RM)",
+                    int(data["Median_PSF"].min()), int(data["Median_PSF"].max()),
+                    int(ref["psf"]),
+                    key=f"psf_{state}_{area}_{ptype}_{suffix}",
+                    help="The market rate per square foot. Defaults to the "
+                         "dataset reference above.",
+                )
+            with adjust_right:
+                transactions = st.slider(
+                    "Transactions in the township",
+                    int(data["Transactions"].min()),
+                    int(data["Transactions"].max()),
+                    int(ref["transactions"]),
+                    key=f"txn_{state}_{area}_{ptype}_{suffix}",
+                    help="Recorded market activity. Defaults to the dataset "
+                         "reference above.",
+                )
 
-        # --- E. PSF validation ----------------------------------------------
-        level, message = psf_status(psf, reference, state)
+        adjusted = (psf != int(ref["psf"])
+                    or transactions != int(ref["transactions"]))
+        if adjusted:
+            st.markdown(
+                f'<div class="mh-note warn">Scenario analysis: using adjusted '
+                f'values (PSF RM{psf:,.0f}, {transactions:,} transactions) '
+                f'instead of the 2025 dataset reference '
+                f'(PSF RM{ref["psf"]:,.0f}, {ref["transactions"]:,} '
+                f'transactions).</div>',
+                unsafe_allow_html=True,
+            )
+
+        # --- PSF validation against the state's observed values ----------
+        state_reference = psf_reference(data, state)
+        level, message = psf_status(psf, state_reference, state)
         st.markdown(f'<div class="mh-note {level}">{message}</div>',
                     unsafe_allow_html=True)
+
     action_left, action_right = st.columns([3, 1])
     with action_left:
-        predict = st.button("Estimate median price", type="primary",
+        predict = st.button("Estimate township median price", type="primary",
                             use_container_width=True)
     with action_right:
         if st.button("Reset inputs", use_container_width=True):
@@ -559,7 +687,7 @@ def main() -> None:
     if not predict:
         return
 
-    # --- F. Prediction ---------------------------------------------------
+    # --- Prediction: only the five trained features are passed -----------
     features = pd.DataFrame([{
         "State": state,
         "Tenure": tenure,
@@ -578,22 +706,25 @@ def main() -> None:
         )
         return
 
+    location_label = state if area == ALL_AREAS else f"{area}, {state}"
     st.markdown(
         f"""
         <div class="mh-result">
-            <div class="label">Estimated median price</div>
+            <div class="label">Estimated township-level median price</div>
             <div class="value">RM {prediction:,.0f}</div>
+            <div class="sub">{ptype} · {tenure} · {location_label}</div>
             <div class="sub">Typical absolute test error (MAE):
                 <strong>RM {test_mae:,.0f}</strong></div>
             <div class="note">MAE is the model's average absolute error on the
                 test dataset. It is not a confidence interval or statistically
-                valid prediction interval.</div>
+                valid prediction interval. This estimate is a township-level
+                median, not a valuation of an individual property.</div>
         </div>
         """,
         unsafe_allow_html=True,
     )
 
-    # --- G/H/I. Reference records ---------------------------------------
+    # --- Reference records ------------------------------------------------
     similar = find_similar_records(data, state, ptype, psf, transactions)
 
     if similar.empty:
@@ -614,26 +745,27 @@ def main() -> None:
     ref_card = st.container(border=True)
     with ref_card:
         st.markdown(
-        '<p class="mh-source">Source: cleaned Malaysia housing dataset, 2025. '
-        'These are historical dataset records and are not live property-market '
-        'data.</p>',
+            '<p class="mh-source">Source: cleaned Malaysia housing dataset, '
+            '2025. These are historical dataset records and are not live '
+            'property-market data.</p>',
             unsafe_allow_html=True,
         )
 
-        # H. Comparison summary
+        # Comparison summary
         st.markdown(summarise_against_group(prediction, group_median))
         st.caption(
             f"Matching group: {len(pool)} record(s) in {state} of type {ptype}. "
-            "The group median summarises past dataset records; it is not a current "
-            "market price."
+            "The group median summarises past dataset records; it is not a "
+            "current market price."
         )
 
-        # I. Chart
+        # Chart
         render_comparison_chart(prediction, group_median, similar)
 
-        # G. Table of the five closest records
-        st.markdown("**Five most similar records** (same state and property type, "
-                    "closest on price per square foot and market activity)")
+        # Table of the five closest records
+        st.markdown("**Five most similar records** (same state and property "
+                    "type, closest on price per square foot and market "
+                    "activity)")
         table = (similar[["Township", "Area", "Median_Price",
                           "Median_PSF", "Transactions"]]
                  .reset_index(drop=True))
@@ -650,11 +782,12 @@ def main() -> None:
 
         with st.expander("How similarity is calculated"):
             st.write(
-                "Records are first filtered to the same state and property type. "
-                "Each remaining record is then scored as the absolute percentage "
-                "difference in median price per square foot plus the absolute "
-                "difference in transactions, normalised by the range within the "
-                "matching group. A lower score means a closer match."
+                "Records are first filtered to the same state and property "
+                "type. Each remaining record is then scored as the absolute "
+                "percentage difference in median price per square foot plus "
+                "the absolute difference in transactions, normalised by the "
+                "range within the matching group. A lower score means a closer "
+                "match."
             )
             st.dataframe(
                 similar[["Township", "Median_PSF", "Transactions",
@@ -669,7 +802,7 @@ def main() -> None:
 
 main()
 
-# --- K. Footer ----------------------------------------------------------
+# --- Footer --------------------------------------------------------------
 st.markdown(
     '<div class="mh-footer">BMDS2003 Data Science Group Assignment | '
     'Academic Prototype | Data source: Malaysia Housing Prices 2025</div>',
