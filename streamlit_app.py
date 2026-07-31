@@ -1,29 +1,29 @@
 """
 BMDS2003 Data Science - Deployment Prototype
-Malaysia Housing Median Price Estimator (market-assisted)
+Malaysia Housing Median Price Estimator
 
 Run locally:   streamlit run streamlit_app.py
 Deploy:        Streamlit Community Cloud
 
-VISUAL REDESIGN NOTE
---------------------
-This file was redesigned for a coordinated LIGHT theme (interface, CSS, layout,
-copy hierarchy and chart styling only). No data-science logic was changed:
-the reference-matching hierarchy, similarity weighting, model files, model
-inputs, metrics and the township-level framing are exactly as before.
+--------------------------------------------------------------------------
+MODEL CONTRACT - do not change without retraining
+--------------------------------------------------------------------------
+The saved pipelines accept exactly five features:
 
-Paths are resolved from the application directory, so the app works no matter
-what the current working directory is.
-
-The trained pipeline receives exactly five features:
     State, Tenure, Primary_Type, Median_PSF, Transactions
-Area and Township are LOOKUP CONTROLS ONLY and are never passed to the model.
+
+`Area` and `Township` are NOT model features. Area is typed freely by the
+user and is used only to look up representative market values from the 2025
+dataset. It is never added to the prediction DataFrame. Making the model
+area-aware would require retraining all four pipelines with Area included.
+--------------------------------------------------------------------------
 """
 
 from __future__ import annotations
 
 from pathlib import Path
 import base64
+import difflib
 
 import joblib
 import pandas as pd
@@ -36,12 +36,12 @@ except ImportError:
     PLOTLY_AVAILABLE = False
 
 
-# ---------------------------------------------------------------------------
+# ===========================================================================
 # CONFIGURATION
-# ---------------------------------------------------------------------------
+# ===========================================================================
 st.set_page_config(
     page_title="Malaysia Housing Median Price Estimator",
-    page_icon="🏘️",
+    page_icon="◆",
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -51,211 +51,205 @@ RESULTS_PATH = APP_DIR / "model_results.csv"
 DATA_PATH = APP_DIR / "malaysia_house_price_cleaned.csv"
 MODELS_DIR = APP_DIR / "models"
 FIGURES_DIR = APP_DIR / "figures"
-ASSETS_DIR = APP_DIR / "assets"
-BANNER_PATH = ASSETS_DIR / "malaysia_housing_banner.png"
+BANNER_PATH = APP_DIR / "assets" / "malaysia_housing_banner.png"
 
-# --- Light design-system palette (single source of truth for Python + CSS) ---
-BG = "#F5F7FB"          # page background
-CARD = "#FFFFFF"        # card surface
-SURFACE = "#F8FAFC"     # subtle neutral surface
-BORDER = "#DDE4EE"      # hairline border
-TEXT = "#172033"        # primary text
-MUTED = "#5F6B7A"       # secondary text
-PRIMARY = "#2563EB"     # primary blue - actions, navigation, information
-NAVY = "#153153"        # dark navy - headings, hero
-SUCCESS = "#168A5B"     # green  - successful estimate, recommended model
-WARNING = "#C77700"     # amber  - caution, limited reference quality
-DANGER = "#C73A4A"      # red    - errors, extrapolation, serious limitations
-HIGHLIGHT = "#EAF2FF"   # soft blue highlight
-NEUTRAL = "#64748B"     # grey   - supporting series in charts
-
-# Fixed model colours, identical in every figure of the app.
-MODEL_COLOURS = {
-    "Decision Tree (Baseline)": NEUTRAL,
-    "Decision Tree": NEUTRAL,
-    "Random Forest": PRIMARY,
-    "XGBoost": WARNING,
-    "LightGBM": SUCCESS,
-}
-
+# The five columns the trained pipelines expect - never add to this list.
 MODEL_FEATURES = ["State", "Tenure", "Primary_Type", "Median_PSF", "Transactions"]
-ALL_AREAS = "All areas in this state"
-
-# Similarity weighting. This is a PRESENTATION CHOICE, not an optimised
-# parameter: Median_PSF carries far more predictive evidence than Transactions
-# (see the correlation and permutation-importance figures), so it is weighted
-# more heavily. The weights have not been statistically validated.
-W_PSF, W_TXN = 0.80, 0.20
 
 
-# ---------------------------------------------------------------------------
-# STYLING  -  one coordinated light theme
-#   1. tokens and page shell
-#   2. typography
-#   3. hero
-#   4. cards, steps and badges
-#   5. result card and notes
-#   6. figure cards
-#   7. Streamlit widget alignment (stable selectors only)
-#   8. responsive behaviour
-# ---------------------------------------------------------------------------
-LIGHT_CSS = """
-<style>
-/* ---- 1. tokens and page shell ------------------------------------- */
-:root {
-  --mh-bg:#F5F7FB; --mh-card:#FFFFFF; --mh-surface:#F8FAFC;
-  --mh-border:#DDE4EE; --mh-text:#172033; --mh-muted:#5F6B7A;
-  --mh-primary:#2563EB; --mh-navy:#153153; --mh-success:#168A5B;
-  --mh-warning:#C77700; --mh-danger:#C73A4A; --mh-highlight:#EAF2FF;
-  --mh-font: Inter, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  --mh-radius:14px;
-  --mh-shadow:0 1px 2px rgba(21,49,83,0.05), 0 8px 24px rgba(21,49,83,0.06);
-}
-.stApp { background: var(--mh-bg); }
-.block-container { padding-top: 1.4rem; padding-bottom: 2rem; max-width: 1180px; }
-
-/* ---- 2. typography ------------------------------------------------ */
-html, body, .stApp, [class*="css"] { font-family: var(--mh-font); }
-.stApp, .stApp p, .stApp li, .stApp label { color: var(--mh-text); }
-.block-container p, .block-container li { font-size: 0.98rem; line-height: 1.6; }
-.block-container h1, .block-container h2, .block-container h3,
-.block-container h4, .block-container h5 { color: var(--mh-navy); font-weight: 650; }
-.block-container h4 { font-size: 1.18rem; margin-bottom: 0.2rem; }
-.block-container h5 { font-size: 1.03rem; }
-
-/* ---- 3. hero ------------------------------------------------------ */
-.mh-hero { position:relative; border-radius:18px; overflow:hidden;
-  padding:2.5rem 2.1rem; margin-bottom:1.2rem; border:1px solid var(--mh-border);
-  background-size:cover; background-position:center; box-shadow:var(--mh-shadow); }
-.mh-hero h1 { margin:0.1rem 0 0.5rem 0; font-size:2.05rem; line-height:1.16;
-  font-weight:700; color:#FFFFFF; }
-.mh-hero p.lede { margin:0; max-width:44rem; font-size:1.02rem; line-height:1.55;
-  color:#E8EEF7; }
-.mh-eyebrow { display:inline-block; font-size:0.8rem; font-weight:600;
-  letter-spacing:0.1em; text-transform:uppercase; color:#FFFFFF;
-  background:rgba(255,255,255,0.16); border:1px solid rgba(255,255,255,0.4);
-  padding:0.3rem 0.7rem; border-radius:8px; }
-.mh-chips { display:flex; flex-wrap:wrap; gap:0.5rem; margin-top:1.1rem; }
-.mh-chip { display:inline-flex; align-items:center; gap:0.35rem;
-  font-size:0.85rem; font-weight:600; color:#123; background:rgba(255,255,255,0.92);
-  border-radius:999px; padding:0.34rem 0.8rem; }
-.mh-chip.ghost { background:rgba(255,255,255,0.14); color:#FFFFFF;
-  border:1px solid rgba(255,255,255,0.45); font-weight:500; }
-
-/* ---- 4. cards, steps, badges -------------------------------------- */
-.mh-card { background:var(--mh-card); border:1px solid var(--mh-border);
-  border-radius:var(--mh-radius); padding:1.15rem 1.25rem; box-shadow:var(--mh-shadow); }
-.mh-stats { display:grid; gap:0.75rem;
-  grid-template-columns:repeat(auto-fit, minmax(168px, 1fr)); margin-bottom:0.5rem; }
-.mh-stat { background:var(--mh-card); border:1px solid var(--mh-border);
-  border-radius:12px; padding:0.85rem 0.95rem; box-shadow:var(--mh-shadow); }
-.mh-stat .k { font-size:0.8rem; font-weight:600; letter-spacing:0.04em;
-  text-transform:uppercase; color:var(--mh-muted); }
-.mh-stat .v { margin-top:0.3rem; font-size:1.32rem; font-weight:680;
-  color:var(--mh-navy); line-height:1.25; overflow-wrap:anywhere; }
-.mh-stat.lead { background:var(--mh-highlight); border-color:#C7DBFB; }
-.mh-stat.lead .v { color:var(--mh-primary); }
-.mh-steprow { display:flex; align-items:baseline; gap:0.65rem; margin:1.5rem 0 0.5rem 0; }
-.mh-stepnum { flex:0 0 auto; width:1.7rem; height:1.7rem; border-radius:50%;
-  background:var(--mh-primary); color:#FFFFFF; font-size:0.9rem; font-weight:700;
-  display:flex; align-items:center; justify-content:center; }
-.mh-steprow .t { font-size:1.1rem; font-weight:650; color:var(--mh-navy); }
-.mh-steprow .s { font-size:0.92rem; color:var(--mh-muted); }
-.mh-badge { display:inline-block; font-size:0.84rem; font-weight:600;
-  padding:0.22rem 0.6rem; border-radius:7px; border:1px solid transparent; }
-.mh-badge.ok   { background:#E7F6EE; color:#0F6B47; border-color:#BFE5D2; }
-.mh-badge.info { background:var(--mh-highlight); color:#1D4ED8; border-color:#C7DBFB; }
-.mh-badge.warn { background:#FCF3E3; color:#8A5300; border-color:#EFD9AE; }
-.mh-badge.bad  { background:#FBEAEC; color:#93242F; border-color:#F0C4C9; }
-.mh-divider { height:1px; background:var(--mh-border); margin:1.6rem 0 0.2rem 0; }
-.mh-source { color:var(--mh-muted); font-size:0.86rem; line-height:1.5;
-  margin:0.1rem 0 0.8rem 0; }
-.mh-footer { margin-top:2.4rem; padding-top:1rem; border-top:1px solid var(--mh-border);
-  text-align:center; color:var(--mh-muted); font-size:0.88rem; line-height:1.6; }
-
-/* ---- 5. result card and notes ------------------------------------- */
-.mh-result { background:var(--mh-card); border:1px solid #BFE5D2; border-left:5px solid var(--mh-success);
-  border-radius:var(--mh-radius); padding:1.5rem 1.6rem; box-shadow:var(--mh-shadow); }
-.mh-result .label { font-size:0.86rem; font-weight:600; letter-spacing:0.06em;
-  text-transform:uppercase; color:var(--mh-muted); }
-.mh-result .value { margin-top:0.25rem; font-size:2.4rem; font-weight:700;
-  color:var(--mh-navy); line-height:1.1; overflow-wrap:anywhere; }
-.mh-result .sub { margin-top:0.6rem; font-size:0.98rem; color:var(--mh-text); }
-.mh-result .note { margin-top:0.8rem; padding-top:0.8rem; border-top:1px solid var(--mh-border);
-  font-size:0.9rem; line-height:1.55; color:var(--mh-muted); }
-.mh-note { border-radius:11px; padding:0.75rem 0.95rem; font-size:0.93rem;
-  line-height:1.55; margin:0.35rem 0; border:1px solid var(--mh-border);
-  background:var(--mh-surface); color:var(--mh-text); }
-.mh-note strong { color:var(--mh-navy); }
-.mh-note.ok    { background:var(--mh-highlight); border-color:#C7DBFB; }
-.mh-note.warn  { background:#FCF7EC; border-color:#EFD9AE; }
-.mh-note.alert { background:#FBEEF0; border-color:#F0C4C9; }
-
-/* ---- 6. figure cards --------------------------------------------- */
-.mh-fig { background:var(--mh-card); border:1px solid var(--mh-border);
-  border-radius:var(--mh-radius); padding:1.05rem 1.2rem; box-shadow:var(--mh-shadow); }
-.mh-fig .num { font-size:0.82rem; font-weight:700; letter-spacing:0.07em;
-  text-transform:uppercase; color:var(--mh-primary); }
-.mh-fig h4 { margin:0.15rem 0 0.4rem 0; font-size:1.08rem; color:var(--mh-navy); }
-.mh-fig p { margin:0.35rem 0; font-size:0.93rem; line-height:1.55; color:var(--mh-text); }
-.mh-fig p.cap { color:var(--mh-muted); font-size:0.89rem; }
-.mh-figframe { background:var(--mh-card); border:1px solid var(--mh-border);
-  border-radius:var(--mh-radius); padding:0.5rem 0.6rem; box-shadow:var(--mh-shadow); }
-
-/* ---- 7. Streamlit widget alignment ------------------------------- */
-/* data-testid selectors are required for these internals; they degrade
-   gracefully - if a future Streamlit release renames them the app still runs
-   with default (light) Streamlit styling. */
-section[data-testid="stSidebar"] { background:var(--mh-card);
-  border-right:1px solid var(--mh-border); }
-section[data-testid="stSidebar"] h3 { font-size:1.05rem; }
-div[data-testid="stMetric"] { background:var(--mh-surface);
-  border:1px solid var(--mh-border); border-radius:12px; padding:0.8rem 0.95rem; }
-div[data-testid="stMetricLabel"] p { color:var(--mh-muted) !important;
-  font-size:0.85rem !important; font-weight:600; }
-div[data-testid="stMetricValue"] { color:var(--mh-navy) !important;
-  font-size:1.24rem !important; }
-div[data-testid="stVerticalBlockBorderWrapper"] { background:var(--mh-card);
-  border-color:var(--mh-border) !important; border-radius:var(--mh-radius);
-  box-shadow:var(--mh-shadow); }
-div[data-testid="stVerticalBlockBorderWrapper"] div[data-testid="stVerticalBlockBorderWrapper"] {
-  box-shadow:none; }
-.stTabs [data-baseweb="tab-list"] { gap:0.35rem; border-bottom:1px solid var(--mh-border); }
-.stTabs [data-baseweb="tab"] { font-size:1rem; font-weight:600; color:var(--mh-muted);
-  padding:0.6rem 1rem; }
-.stTabs [aria-selected="true"] { color:var(--mh-primary) !important; }
-.stButton > button { border-radius:10px; font-weight:600; font-size:0.98rem;
-  padding:0.55rem 1rem; }
-.stButton > button[kind="primary"] { background:var(--mh-primary); border-color:var(--mh-primary); }
-.stButton > button[kind="primary"]:hover { background:#1D4ED8; border-color:#1D4ED8; }
-.stButton > button[kind="secondary"] { background:var(--mh-card); color:var(--mh-navy);
-  border:1px solid var(--mh-border); }
-label p { font-size:0.95rem !important; font-weight:600; color:var(--mh-text) !important; }
-div[data-testid="stExpander"] { border-radius:12px; border-color:var(--mh-border); }
-div[data-testid="stExpander"] summary p { font-weight:600; color:var(--mh-navy) !important; }
-div[data-testid="stCaptionContainer"] p { color:var(--mh-muted) !important;
-  font-size:0.89rem !important; }
-
-/* ---- 8. responsive ----------------------------------------------- */
-@media (max-width: 1024px) {
-  .mh-stats { grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); }
-}
-@media (max-width: 640px) {
-  .block-container { padding-left:0.85rem; padding-right:0.85rem; }
-  .mh-hero { padding:1.7rem 1.2rem; }
-  .mh-hero h1 { font-size:1.55rem; }
-  .mh-hero p.lede { font-size:0.96rem; }
-  .mh-stats { grid-template-columns:1fr; }
-  .mh-result .value { font-size:1.85rem; }
-  .stTabs [data-baseweb="tab"] { font-size:0.92rem; padding:0.5rem 0.6rem; }
-  .stButton > button { width:100%; }
-}
-</style>
-"""
-
-
+# ===========================================================================
+# DESIGN SYSTEM
+# Semantic tokens, not raw hex in components. Contrast checked against the
+# page surface: text-1 ~17:1, text-2 ~11:1, text-3 ~6.7:1 (all pass 4.5:1).
+# ===========================================================================
 def inject_css() -> None:
-    st.markdown(LIGHT_CSS, unsafe_allow_html=True)
+    st.markdown(
+        """
+        <style>
+        :root {
+            /* surfaces */
+            --surface-0:#0B1220; --surface-1:#131C2E; --surface-2:#1B2740;
+            --border:rgba(148,163,184,0.18); --border-strong:rgba(148,163,184,0.34);
+            /* text */
+            --text-1:#F8FAFC; --text-2:#CBD5E1; --text-3:#94A3B8;
+            /* semantic */
+            --brand:#3B82F6; --brand-soft:rgba(59,130,246,0.14);
+            --success:#22C55E; --success-soft:rgba(34,197,94,0.14);
+            --warn:#F59E0B;   --warn-soft:rgba(245,158,11,0.14);
+            --danger:#F87171; --danger-soft:rgba(248,113,113,0.14);
+            /* rhythm: 4/8px scale */
+            --sp-1:4px; --sp-2:8px; --sp-3:16px; --sp-4:24px; --sp-5:32px;
+            --radius:14px; --radius-sm:10px;
+            --shadow:0 8px 24px rgba(0,0,0,0.32);
+        }
+
+        .stApp {
+            background:
+              radial-gradient(1200px 600px at 15% -10%, #17233C 0%, transparent 60%),
+              linear-gradient(168deg, var(--surface-0) 0%, #0E1626 60%, #0B1220 100%);
+            color: var(--text-1);
+        }
+        .block-container { padding-top: var(--sp-4); max-width: 1180px; }
+
+        /* Body text >=16px on mobile so iOS does not auto-zoom */
+        html, body, [class*="css"] { font-size: 16px; line-height: 1.6; }
+
+        /* Numbers in columns line up */
+        div[data-testid="stMetricValue"], .mh-num, table, .stDataFrame {
+            font-variant-numeric: tabular-nums;
+        }
+
+        /* ---- Hero ---- */
+        .mh-hero {
+            border-radius: 18px; padding: var(--sp-5) var(--sp-4);
+            margin-bottom: var(--sp-4); border: 1px solid var(--border);
+            box-shadow: var(--shadow);
+            background-size: cover; background-position: center;
+        }
+        .mh-kicker {
+            display:inline-block; font-size:0.72rem; font-weight:600;
+            letter-spacing:0.12em; text-transform:uppercase; color:#EFF6FF;
+            background: rgba(59,130,246,0.85); padding:6px 12px;
+            border-radius:999px; margin-bottom: var(--sp-3);
+        }
+        .mh-hero h1 { margin:0 0 var(--sp-2) 0; font-size:2rem; font-weight:700;
+                      line-height:1.2; color:#FFFFFF; }
+        .mh-hero p  { margin:0; max-width:64ch; color:#E2E8F0; line-height:1.6; }
+
+        /* ---- Section heading ---- */
+        .mh-step {
+            display:flex; align-items:center; gap:var(--sp-2);
+            margin: var(--sp-4) 0 var(--sp-2) 0;
+        }
+        .mh-step .n {
+            width:26px; height:26px; border-radius:50%; flex:0 0 26px;
+            background:var(--brand-soft); border:1px solid var(--brand);
+            color:#BFDBFE; font-size:0.78rem; font-weight:700;
+            display:flex; align-items:center; justify-content:center;
+        }
+        .mh-step h3 { margin:0; font-size:1rem; font-weight:600; color:var(--text-1); }
+
+        /* ---- Metrics ---- */
+        div[data-testid="stMetric"] {
+            background: var(--surface-1); border:1px solid var(--border);
+            border-radius: var(--radius); padding: 14px 16px; box-shadow: var(--shadow);
+        }
+        div[data-testid="stMetricLabel"] p {
+            color: var(--text-3) !important; font-size:0.74rem !important;
+            letter-spacing:0.06em; text-transform:uppercase;
+        }
+        div[data-testid="stMetricValue"] { color: var(--text-1) !important;
+                                           font-size:1.3rem !important; }
+
+        /* ---- Result panel ---- */
+        .mh-result {
+            background: linear-gradient(135deg, var(--success-soft), var(--brand-soft));
+            border:1px solid rgba(34,197,94,0.42); border-radius:18px;
+            padding: var(--sp-4) var(--sp-4); box-shadow: var(--shadow);
+        }
+        .mh-result .cap { font-size:0.76rem; letter-spacing:0.1em;
+                          text-transform:uppercase; color:var(--text-3); }
+        .mh-result .amount { font-size:2.5rem; font-weight:700; color:var(--success);
+                             line-height:1.1; margin:var(--sp-1) 0 var(--sp-3) 0;
+                             font-variant-numeric: tabular-nums; }
+        .mh-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr));
+                   gap:var(--sp-2) var(--sp-4); margin-top:var(--sp-2); }
+        .mh-grid div { font-size:0.88rem; color:var(--text-2); }
+        .mh-grid span { display:block; color:var(--text-3); font-size:0.72rem;
+                        text-transform:uppercase; letter-spacing:0.05em; }
+
+        /* ---- Inline notices: colour + label, never colour alone ---- */
+        .mh-note { border-radius:var(--radius-sm); padding:12px 14px;
+                   font-size:0.88rem; line-height:1.55; margin-top:var(--sp-2);
+                   border-left:3px solid; }
+        .mh-note b { display:block; margin-bottom:2px; font-size:0.78rem;
+                     letter-spacing:0.05em; text-transform:uppercase; }
+        .mh-note.info   { background:var(--brand-soft);  border-color:var(--brand);
+                          color:#DBEAFE; }
+        .mh-note.good   { background:var(--success-soft);border-color:var(--success);
+                          color:#DCFCE7; }
+        .mh-note.warn   { background:var(--warn-soft);   border-color:var(--warn);
+                          color:#FEF3C7; }
+        .mh-note.danger { background:var(--danger-soft); border-color:var(--danger);
+                          color:#FEE2E2; }
+
+        .mh-fine { color:var(--text-3); font-size:0.8rem; line-height:1.55; }
+
+        /* ---- Figure card ---- */
+        .mh-fig { background:var(--surface-1); border:1px solid var(--border);
+                  border-radius:var(--radius); padding:14px 16px; margin-bottom:6px; }
+        .mh-fig h4 { margin:0 0 6px 0; font-size:0.95rem; color:var(--text-1); }
+        .mh-fig p  { margin:4px 0; font-size:0.85rem; line-height:1.55;
+                     color:var(--text-2); }
+
+        /* ---- Containers, buttons, inputs ---- */
+        div[data-testid="stVerticalBlockBorderWrapper"] {
+            background: var(--surface-1); border:1px solid var(--border) !important;
+            border-radius: var(--radius); box-shadow: var(--shadow); padding:6px 4px;
+        }
+        .stButton > button {
+            border-radius: var(--radius-sm); font-weight:600;
+            min-height:44px;                      /* 44px touch target */
+            transition: transform 180ms ease, opacity 180ms ease;
+        }
+        .stButton > button:hover { transform: translateY(-1px); }
+        .stButton > button:active { transform: translateY(0); }
+
+        /* Visible focus rings - never removed */
+        button:focus-visible, input:focus-visible, select:focus-visible,
+        textarea:focus-visible, [role="tab"]:focus-visible {
+            outline:2px solid var(--brand) !important; outline-offset:2px !important;
+        }
+
+        /* ---- Tabs ---- */
+        .stTabs [data-baseweb="tab-list"] { gap:var(--sp-1); border-bottom:1px solid var(--border); }
+        .stTabs [data-baseweb="tab"] {
+            height:46px; padding:0 18px; border-radius:var(--radius-sm) var(--radius-sm) 0 0;
+            color:var(--text-3);
+        }
+        .stTabs [aria-selected="true"] {
+            background:var(--surface-2); color:var(--text-1) !important;
+            border-bottom:2px solid var(--brand);
+        }
+
+        section[data-testid="stSidebar"] > div {
+            background: var(--surface-1); border-right:1px solid var(--border);
+        }
+
+        .mh-footer { margin-top:var(--sp-5); padding-top:var(--sp-3);
+                     border-top:1px solid var(--border); text-align:center;
+                     color:var(--text-3); font-size:0.8rem; }
+
+        /* ---- Responsive: 375 / 768 / 1024 ---- */
+        @media (max-width: 768px) {
+            .mh-hero { padding: var(--sp-4) var(--sp-3); }
+            .mh-hero h1 { font-size:1.5rem; }
+            .mh-result .amount { font-size:1.9rem; }
+            .block-container { padding-left:12px; padding-right:12px; }
+        }
+
+        /* ---- Respect reduced motion ---- */
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after {
+                animation-duration:0.01ms !important; transition-duration:0.01ms !important;
+            }
+            .stButton > button:hover { transform:none; }
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def step_heading(number: int, title: str) -> None:
+    st.markdown(f'<div class="mh-step"><div class="n">{number}</div>'
+                f'<h3>{title}</h3></div>', unsafe_allow_html=True)
+
+
+def notice(kind: str, label: str, body: str) -> None:
+    """Inline notice. A text label carries the meaning, not the colour alone."""
+    st.markdown(f'<div class="mh-note {kind}"><b>{label}</b>{body}</div>',
+                unsafe_allow_html=True)
 
 
 @st.cache_data(show_spinner=False)
@@ -270,64 +264,25 @@ def encode_image(path_str: str) -> str | None:
 
 
 def render_hero() -> None:
-    """Banner hero. Falls back to a light-blue-to-navy gradient if the image
-    is missing, so the app never crashes on a fresh checkout."""
     encoded = encode_image(str(BANNER_PATH))
-    if encoded:
-        # Restrained navy overlay: keeps the photograph visible, keeps text legible.
-        layer = ("linear-gradient(100deg, rgba(21,49,83,0.90) 0%, "
-                 "rgba(21,49,83,0.72) 55%, rgba(21,49,83,0.55) 100%), "
-                 f"url('data:image/png;base64,{encoded}')")
-    else:
-        layer = "linear-gradient(100deg, #153153 0%, #1E4373 55%, #2563EB 100%)"
+    layer = (f"linear-gradient(rgba(11,18,32,0.80), rgba(11,18,32,0.88)), "
+             f"url('data:image/png;base64,{encoded}')" if encoded
+             else "linear-gradient(120deg,#0B1220 0%,#16243D 45%,#1E3A5F 100%)")
     st.markdown(
         f"""
-        <div class="mh-hero" style="background-image: {layer};">
-            <span class="mh-eyebrow">BMDS2003 Data Science Group Assignment</span>
+        <div class="mh-hero" style="background-image:{layer};">
+            <span class="mh-kicker">BMDS2003 Data Science Group Assignment</span>
             <h1>Malaysia Housing Median Price Estimator</h1>
-            <p class="lede">A market-assisted decision-support prototype that
-               estimates the <strong>median house price of a township</strong>
-               from Malaysian housing-market records.</p>
-            <div class="mh-chips">
-                <span class="mh-chip">Static 2025 dataset</span>
-                <span class="mh-chip">Township-level median prediction</span>
-                <span class="mh-chip ghost">Academic prototype &mdash; not a formal valuation</span>
-            </div>
+            <p>Estimate a township-level median house price from location, property
+               type, tenure and market rate, using a regression model trained on
+               Malaysian housing data from 2025.</p>
         </div>
-        """,
-        unsafe_allow_html=True,
-    )
+        """, unsafe_allow_html=True)
 
 
-def step_header(number: int, title: str, subtitle: str = "") -> None:
-    st.markdown(
-        f'<div class="mh-steprow"><span class="mh-stepnum">{number}</span>'
-        f'<span><span class="t">{title}</span><br><span class="s">{subtitle}</span></span></div>',
-        unsafe_allow_html=True)
-
-
-def section_header(title: str, subtitle: str = "") -> None:
-    st.markdown(f'<div class="mh-steprow"><span><span class="t">{title}</span>'
-                f'<br><span class="s">{subtitle}</span></span></div>',
-                unsafe_allow_html=True)
-
-
-def stat_grid(items: list[tuple[str, str, bool]]) -> None:
-    """items = [(label, value, is_lead)] rendered as responsive summary cards."""
-    cells = "".join(
-        f'<div class="mh-stat{" lead" if lead else ""}">'
-        f'<div class="k">{label}</div><div class="v">{value}</div></div>'
-        for label, value, lead in items)
-    st.markdown(f'<div class="mh-stats">{cells}</div>', unsafe_allow_html=True)
-
-
-def note(text: str, level: str = "ok") -> None:
-    st.markdown(f'<div class="mh-note {level}">{text}</div>', unsafe_allow_html=True)
-
-
-# ---------------------------------------------------------------------------
+# ===========================================================================
 # LOADING
-# ---------------------------------------------------------------------------
+# ===========================================================================
 def model_filename(model_name: str) -> str:
     return model_name.split(" (")[0].lower().replace(" ", "_") + ".pkl"
 
@@ -336,15 +291,15 @@ def model_filename(model_name: str) -> str:
 def load_results() -> pd.DataFrame:
     """Model metrics, ordered by the official selection rule (CV RMSE)."""
     results = pd.read_csv(RESULTS_PATH)
-    return results.sort_values(["CV_RMSE_mean", "CV_RMSE_std"],
-                               ascending=[True, True]).reset_index(drop=True)
+    return (results.sort_values(["CV_RMSE_mean", "CV_RMSE_std"],
+                                ascending=[True, True]).reset_index(drop=True))
 
 
 @st.cache_resource(show_spinner="Loading model...")
 def load_model(model_name: str):
     path = MODELS_DIR / model_filename(model_name)
     if not path.exists():
-        raise FileNotFoundError(str(path))
+        raise FileNotFoundError(path.name)
     return joblib.load(path)
 
 
@@ -354,886 +309,619 @@ def load_data() -> pd.DataFrame:
 
 
 def load_resources():
-    """Load metrics and data with friendly errors instead of a traceback."""
     missing = [p.name for p in (RESULTS_PATH, DATA_PATH) if not p.exists()]
     if missing:
         st.error(
-            "Required file(s) not found: " + ", ".join(missing) + ".  \n"
-            "**How to fix:** keep `streamlit_app.py`, `model_results.csv`, "
-            "`malaysia_house_price_cleaned.csv` and the `models/` folder together "
-            "in the same directory, then reload the app."
-        )
+            "**Required file(s) not found:** " + ", ".join(missing) + "  \n\n"
+            "Keep `streamlit_app.py`, `model_results.csv`, "
+            "`malaysia_house_price_cleaned.csv` and the `models/` folder in the "
+            "same directory, then reload the page.")
         st.stop()
     try:
-        return load_results(), load_data()
+        results, data = load_results(), load_data()
     except Exception:
-        st.error(
-            "The metrics file or dataset could not be read. **How to fix:** check "
-            "that `model_results.csv` and `malaysia_house_price_cleaned.csv` come "
-            "from the same notebook run, then reload the app."
-        )
+        st.error("**The metrics file or dataset could not be read.** Check that "
+                 "`model_results.csv` and `malaysia_house_price_cleaned.csv` come "
+                 "from the same notebook run and are not empty.")
         st.stop()
+    if data.empty or results.empty:
+        st.error("**The dataset or metrics file is empty.** Re-run the notebook "
+                 "and copy the regenerated files next to this app.")
+        st.stop()
+    return results, data
 
 
-# ---------------------------------------------------------------------------
-# LOOKUP AND SIMILARITY (pure functions - unchanged logic)
-# ---------------------------------------------------------------------------
-def area_options(data: pd.DataFrame, state: str) -> list[str]:
-    areas = sorted(data.loc[data["State"] == state, "Area"].dropna().unique())
-    return [ALL_AREAS] + list(areas)
+# ===========================================================================
+# AREA RESOLUTION AND REFERENCE LOOKUP  (pure functions)
+# ===========================================================================
+def resolve_area(user_text: str, data: pd.DataFrame, state: str):
+    """Match free-typed text against known areas in the selected state.
 
+    Any text is accepted - this never rejects an unknown location. Matching is
+    case-insensitive and whitespace-tolerant. When there is no exact match,
+    close spellings are offered as hints so a typo does not silently drop the
+    user to a broader reference group.
 
-def confidence_label(n: int, is_exact: bool) -> tuple[str, str]:
-    """Describe how much dataset support the reference values have."""
-    if not is_exact:
-        return "Fallback reference", "warn"
-    if n >= 10:
-        return "Strong reference", "ok"
-    if n >= 5:
-        return "Moderate reference", "ok"
-    if n >= 2:
-        return "Limited reference", "warn"
-    return "Very limited reference", "warn"
-
-
-def quality_badge(text: str, level: str) -> str:
-    """Reference-quality badge. Text always states the quality, so colour is
-    never the only indicator."""
-    icon = {"ok": "&#10003;", "warn": "&#9888;", "alert": "&#9888;"}.get(level, "")
-    css = {"ok": "ok", "warn": "warn", "alert": "bad"}.get(level, "info")
-    return f'<span class="mh-badge {css}">{icon} {text}</span>'
-
-
-def derive_reference(data: pd.DataFrame, state: str, area: str, ptype: str,
-                     tenure: str) -> dict:
-    """Representative Median_PSF / Transactions from the matching records.
-
-    Area and Tenure are used for LOOKUP ONLY. Tenure is also a model feature,
-    but it is included here so the reference values describe the same kind of
-    property the user selected.
-
-    Fallback order (first non-empty group wins):
-        1. state + area + type + tenure
-        2. state + area + type
-        3. state + type + tenure
-        4. state + type
-        5. state
-        6. whole dataset
-    The SAME pool is reused for the group median, the similar-record table and
-    the comparison chart, so every number the user sees comes from one group.
+    Returns (matched_area or None, [suggestions]).
     """
-    s = data["State"] == state
-    t = data["Primary_Type"] == ptype
-    n_ = data["Tenure"] == tenure
-    candidates = []
-    if area != ALL_AREAS:
-        a = data["Area"] == area
-        candidates.append((f"{area}, {state} · {ptype} · {tenure}", s & a & t & n_))
-        candidates.append((f"{area}, {state} · {ptype} (any tenure)", s & a & t))
-    candidates.append((f"{state} · {ptype} · {tenure} (all areas)", s & t & n_))
-    candidates.append((f"{state} · {ptype} (any tenure, all areas)", s & t))
-    candidates.append((f"{state} · all property types", s))
-    candidates.append(("whole dataset", pd.Series(True, index=data.index)))
+    text = (user_text or "").strip()
+    if not text:
+        return None, []
+    known = [a for a in data.loc[data["State"] == state, "Area"].dropna().unique()]
+    lookup = {str(a).strip().casefold(): a for a in known}
+    key = text.casefold()
+    if key in lookup:
+        return lookup[key], []
+    partial = [orig for folded, orig in lookup.items() if key in folded or folded in key]
+    if partial:
+        return None, sorted(partial)[:3]
+    close = difflib.get_close_matches(key, list(lookup.keys()), n=3, cutoff=0.7)
+    return None, [lookup[c] for c in close]
 
-    for position, (label, mask) in enumerate(candidates):
+
+def derive_reference(data: pd.DataFrame, state: str, area: str | None,
+                     ptype: str, tenure: str) -> dict:
+    """Suggested Median_PSF and Transactions from the closest available group.
+
+    Fallback hierarchy - the first non-empty group wins:
+      1. state + area + type + tenure
+      2. state + area + type
+      3. state + area                  (any type/tenure - keeps the local market rate)
+      4. state + type + tenure
+      5. state + type
+      6. state
+      7. whole dataset                 (safety net only)
+
+    Level 3 is included because when a typed area exists but has no record of
+    that property type, the area's own price level is still the most locally
+    relevant market rate available.
+
+    Suggested values are MEDIANS, which resist the strong right skew that
+    remains in the cleaned data.
+    """
+    in_state = data["State"] == state
+    is_type = data["Primary_Type"] == ptype
+    is_tenure = data["Tenure"] == tenure
+    candidates = []
+    if area:
+        in_area = data["Area"] == area
+        candidates += [
+            (1, f"{area}, {state} · {ptype} · {tenure}", in_state & in_area & is_type & is_tenure),
+            (2, f"{area}, {state} · {ptype}", in_state & in_area & is_type),
+            (3, f"{area}, {state} (all property types)", in_state & in_area),
+        ]
+    candidates += [
+        (4, f"{state} · {ptype} · {tenure}", in_state & is_type & is_tenure),
+        (5, f"{state} · {ptype}", in_state & is_type),
+        (6, f"{state} (all property types)", in_state),
+        (7, "whole 2025 dataset", pd.Series(True, index=data.index)),
+    ]
+    for level, label, mask in candidates:
         pool = data[mask]
         if not pool.empty:
             return {
-                "psf": float(pool["Median_PSF"].median()),
+                "psf": int(round(float(pool["Median_PSF"].median()))),
                 "transactions": int(round(float(pool["Transactions"].median()))),
                 "price_median": float(pool["Median_Price"].median()),
                 "n": int(len(pool)),
-                "level": label,
-                "is_exact": position == 0,
+                "level": level,
+                "label": label,
                 "pool": pool,
             }
     raise ValueError("no records available")
 
 
+def fallback_message(reference: dict, area_text: str, area_matched: str | None,
+                     state: str) -> tuple[str, str, str]:
+    """One concise, honest sentence about where the suggested values came from."""
+    level = reference["level"]
+    if level <= 2:
+        return ("good", "Exact area reference found",
+                f"Suggested market values come from {reference['n']} record(s) for "
+                f"<strong>{reference['label']}</strong>.")
+    if level == 3:
+        return ("info", "Area found, property type unavailable",
+                f"No record of this property type exists for {area_matched}. "
+                f"Suggested values use all {reference['n']} record(s) in "
+                f"<strong>{reference['label']}</strong>.")
+    if not area_text.strip():
+        return ("info", "No specific area entered",
+                f"Broader reference values are being used: "
+                f"<strong>{reference['label']}</strong> "
+                f"({reference['n']} records).")
+    return ("warn", "Location not in the 2025 dataset",
+            f"No record was found for “{area_text.strip()}”. Suggested market values "
+            f"are based on the broader <strong>{reference['label']}</strong> group "
+            f"({reference['n']} records).")
+
+
+def psf_range(data: pd.DataFrame, state: str) -> dict:
+    series = data.loc[data["State"] == state, "Median_PSF"]
+    return {"median": float(series.median()), "min": float(series.min()),
+            "max": float(series.max())}
+
+
 def find_similar_records(pool: pd.DataFrame, psf: float, transactions: int,
                          top_n: int = 5) -> pd.DataFrame:
-    """Rank the SAME pool used for the reference values by similarity.
+    """Rank records in a pool by closeness to the given market values.
 
-    Score = 0.80 x |%diff in Median_PSF| + 0.20 x normalised |diff in Transactions|
-    Lower is more similar. Weights are a documented presentation choice.
+    Score = 0.80 x |%diff in Median_PSF| + 0.20 x normalised |diff in Transactions|.
+    The weights are a presentation choice reflecting the much stronger evidence
+    for Median_PSF; they have not been statistically validated.
     """
     if pool.empty:
         return pool
     ranked = pool.copy()
     psf_gap = (ranked["Median_PSF"] - psf).abs() / max(psf, 1)
     span = ranked["Transactions"].max() - ranked["Transactions"].min()
-    span = span if span > 0 else 1
-    txn_gap = (ranked["Transactions"] - transactions).abs() / span
-    ranked["Similarity_Score"] = W_PSF * psf_gap + W_TXN * txn_gap
+    txn_gap = (ranked["Transactions"] - transactions).abs() / (span if span > 0 else 1)
+    ranked["Similarity_Score"] = 0.80 * psf_gap + 0.20 * txn_gap
     return ranked.sort_values("Similarity_Score").head(top_n)
 
 
-def psf_reference(data: pd.DataFrame, state: str) -> dict:
-    series = data.loc[data["State"] == state, "Median_PSF"]
-    return {"median": float(series.median()), "min": float(series.min()),
-            "max": float(series.max()), "n": int(series.size)}
-
-
-def psf_status(psf: float, reference: dict, state: str) -> tuple[str, str]:
-    median, low, high = reference["median"], reference["min"], reference["max"]
-    deviation = (psf - median) / median if median else 0.0
-    if psf < low or psf > high:
-        return "alert", (
-            f"<strong>&#9888; Outside the observed range.</strong> The selected PSF "
-            f"of RM{psf:,.0f} is outside the range observed in {state} "
-            f"(RM{low:,.0f} – RM{high:,.0f}). The model is extrapolating beyond its "
-            f"training data, so treat the estimate with strong caution.")
-    if abs(deviation) > 0.30:
-        direction = "above" if deviation > 0 else "below"
-        segment = "premium-market" if deviation > 0 else "budget-market"
-        return "warn", (
-            f"<strong>&#9888; Unusual for this state.</strong> The selected PSF of "
-            f"RM{psf:,.0f} is substantially {direction} the {state} median of "
-            f"RM{median:,.0f}. The prediction may represent a {segment} property.")
-    return "ok", (
-        f"<strong>&#10003; Typical for this state.</strong> The selected PSF of "
-        f"RM{psf:,.0f} is reasonably close to the median value observed for "
-        f"{state} (RM{median:,.0f}).")
-
-
-def summarise_against_group(prediction: float, group_median: float) -> str:
-    difference = prediction - group_median
-    percent = (difference / group_median * 100) if group_median else 0.0
-    if abs(percent) < 5:
-        relation = "close to the matching-group median"
-    elif difference > 0:
-        relation = "above the matching-group median"
-    else:
-        relation = "below the matching-group median"
-    return (f"The estimate of **RM {prediction:,.0f}** is {relation} "
-            f"(**RM {group_median:,.0f}**) — a difference of "
-            f"**RM {abs(difference):,.0f}** (**{abs(percent):.1f}%**).")
-
-
-# ---------------------------------------------------------------------------
-# CHART  -  coordinated light chart system
-# ---------------------------------------------------------------------------
-def render_comparison_chart(prediction: float, group_median: float,
-                            similar: pd.DataFrame) -> None:
-    """Simple 2-D bar comparison: estimate, group median, closest records.
-    Light template, RM formatting, thousands separators, minimal gridlines."""
-    labels = ["Your estimate", "Matching-group median"]
-    values = [prediction, group_median]
-    colors = [SUCCESS, PRIMARY]
-    for _, row in similar.iterrows():
-        name = str(row["Township"]).title()
-        labels.append(name if len(name) <= 22 else name[:20] + "…")
-        values.append(float(row["Median_Price"]))
-        colors.append(NEUTRAL)
-
-    if PLOTLY_AVAILABLE:
-        figure = go.Figure(go.Bar(
-            x=labels, y=values, marker_color=colors,
-            marker_line_width=0, width=0.6,
-            text=[f"RM {v/1000:,.0f}K" for v in values], textposition="outside",
-            textfont=dict(color=TEXT, size=12),
-            hovertemplate="%{x}<br>RM %{y:,.0f}<extra></extra>"))
-        figure.update_layout(
-            template="plotly_white",
-            title=dict(text="Estimate against the matching comparison group",
-                       font=dict(color=NAVY, size=15), x=0, xanchor="left"),
-            height=430, margin=dict(l=10, r=10, t=52, b=110),
-            paper_bgcolor=CARD, plot_bgcolor=CARD,
-            font=dict(color=TEXT, size=13,
-                      family='Inter, "Segoe UI", Roboto, Helvetica, Arial, sans-serif'),
-            yaxis=dict(title="Median price (RM)", gridcolor=BORDER,
-                       zerolinecolor=BORDER, tickformat=",.0f",
-                       tickfont=dict(color=MUTED)),
-            xaxis=dict(tickangle=-30, tickfont=dict(color=MUTED, size=12),
-                       showgrid=False),
-            showlegend=False)
-        st.plotly_chart(figure, use_container_width=True)
-    else:
-        st.bar_chart(pd.DataFrame({"Median price (RM)": values}, index=labels))
-        st.caption("Install `plotly` for the styled version of this chart.")
-
-
-def render_metric_chart(results: pd.DataFrame) -> None:
-    """Test-metric comparison with the fixed model colours."""
-    if not PLOTLY_AVAILABLE:
-        return
-    order = results["Model"].tolist()
-    colours = [MODEL_COLOURS.get(m, NEUTRAL) for m in order]
-    figure = go.Figure(go.Bar(
-        x=[results.loc[results["Model"] == m, "RMSE_test"].iloc[0] for m in order],
-        y=[m.replace(" (Baseline)", "") for m in order],
-        orientation="h", marker_color=colours, marker_line_width=0,
-        text=[f"RM {results.loc[results['Model'] == m, 'RMSE_test'].iloc[0]/1000:,.1f}K"
-              for m in order],
-        textposition="outside", textfont=dict(color=TEXT, size=12),
-        hovertemplate="%{y}<br>Test RMSE RM %{x:,.0f}<extra></extra>"))
-    figure.update_layout(
-        template="plotly_white",
-        title=dict(text="Test RMSE by model — lower is better",
-                   font=dict(color=NAVY, size=15), x=0, xanchor="left"),
-        height=300, margin=dict(l=10, r=70, t=52, b=40),
-        paper_bgcolor=CARD, plot_bgcolor=CARD,
-        font=dict(color=TEXT, size=13,
-                  family='Inter, "Segoe UI", Roboto, Helvetica, Arial, sans-serif'),
-        xaxis=dict(title="Test RMSE (RM)", gridcolor=BORDER, tickformat=",.0f",
-                   tickfont=dict(color=MUTED)),
-        yaxis=dict(autorange="reversed", showgrid=False,
-                   tickfont=dict(color=TEXT, size=12)),
-        showlegend=False)
-    st.plotly_chart(figure, use_container_width=True)
-    st.caption("Colours are fixed for every model across the whole app: "
-               "Decision Tree grey · Random Forest blue · XGBoost amber · "
-               "LightGBM green. Test metrics are reported, never used for selection.")
-
-
-# ---------------------------------------------------------------------------
+# ===========================================================================
 # FIGURE GALLERY
-# ---------------------------------------------------------------------------
-# Presentation notes for every figure shipped in figures/.
+# ===========================================================================
 FIGURE_NOTES = {
-    "fig01_raw_target_distribution.png": (
-        "Figure 1 — Distribution of the raw target variable",
-        "Is the median price suitable for modelling as-is?",
-        "The raw distribution is extremely right-skewed (skewness ≈ 8.8) with a "
-        "tail reaching RM11.4 million.",
-        "Skew of this size distorts distance-based fences, which is why outliers "
-        "were assessed on the log scale.",
-        "The log panel is a viewing transformation only; no record is deleted here."),
-    "fig02_raw_numeric_boxplots.png": (
-        "Figure 2 — Raw numeric attributes (log scale)",
-        "How extreme are the values in each numeric column?",
-        "All three columns are strongly right-skewed; a log axis is required to "
-        "see the middle 50% at all.",
-        "It shows why raw-scale IQR fences flag so many legitimate high-value records.",
-        "Points beyond the whiskers are statistical flags, not proven data errors."),
-    "fig03_raw_state_counts.png": (
-        "Figure 3 — Raw record count by state",
-        "How evenly is the dataset spread across Malaysia?",
-        "Selangor and Johor dominate; several territories have fewer than five records.",
-        "The model will generalise best to well-represented states.",
-        "Small-sample states cannot support reliable state-level conclusions."),
-    "fig04_raw_tenure_type.png": (
-        "Figure 4 — Raw tenure and property-type labels",
-        "What cleaning do the categorical columns need?",
-        "Tenure contains the same pair written in two orders, and Type holds 46 "
-        "multi-value combination strings.",
-        "Both need standardising before they can be encoded.",
-        "Primary_Type takes the first listed type, which is an operational assumption."),
-    "fig05_raw_numeric_correlation.png": (
-        "Figure 5 — Correlation between raw numeric variables",
-        "Which numeric column is most related to price before cleaning?",
-        "Median PSF is strongly related to price; transactions are almost unrelated.",
-        "It sets the expectation that PSF will dominate the model.",
-        "Correlation measures linear association only."),
-    "fig06_raw_psf_vs_price.png": (
-        "Figure 6 — Median PSF against Median Price (raw)",
-        "What does the PSF–price relationship look like before cleaning?",
-        "A positive relationship is visible once density and scale are handled; "
-        "extreme values otherwise compress everything into one corner.",
-        "It justifies both the log-scale treatment and the outlier assessment.",
-        "The zoomed panel changes the visible range only and deletes no records."),
-    "fig07_outlier_before_after.png": (
-        "Figure 7 — Price before and after outlier deletion",
-        "What did log-IQR deletion actually remove?",
-        "86 of 2,000 records were removed; the retained range is about "
-        "RM90K–RM1.77M.",
-        "It defines the market scope the model is valid for.",
-        "Removed records are not necessarily errors — this is a scope restriction."),
-    "fig08_price_distribution_clean.png": (
-        "Figure 8 — Price distribution before and after cleaning",
-        "How did the shape of the target change?",
-        "Raw-price skewness falls from about 8.8 to about 1.7 while the bulk of "
-        "the market is untouched.",
-        "A less distorted target is easier for the models to fit.",
-        "This is raw-price skewness, not log-price skewness (≈0.11)."),
-    "fig09_category_donut.png": (
-        "Figure 9 — Landed versus High-Rise share",
-        "What is the composition of the cleaned dataset?",
-        "About 71% of records are Landed and 29% High-Rise.",
-        "Landed property types dominate the dataset the model learns from.",
-        "This is a share of records, not of Malaysia's housing stock."),
-    "fig10_state_counts_clean.png": (
-        "Figure 10 — Records per state after cleaning",
-        "Does cleaning change the geographic balance?",
-        "Selangor and Johor still account for roughly 47% of records.",
-        "Imbalance persists and remains a stated limitation.",
-        "Counts are township-level records, not unique township names."),
-    "fig11_state_violin.png": (
-        "Figure 11 — Price distribution across major states",
-        "How do prices differ between the best-represented states?",
-        "Kuala Lumpur and Selangor sit clearly higher with long upper tails.",
-        "Location is a strong price driver, supporting State as a model feature.",
-        "States were chosen by record count, not by price; n is shown per state."),
-    "fig12_type_boxplot.png": (
-        "Figure 12 — Price by property type",
-        "Which property types command higher prices?",
-        "A clear ladder runs from Flats at the bottom to Bungalows at the top.",
-        "Property type is a strong predictor and is retained as a model feature.",
-        "Outlier markers are hidden for readability; the observations remain in "
-        "the analysis."),
-    "fig13_tenure_violin.png": (
-        "Figure 13 — Price distribution by tenure",
-        "Is tenure associated with price?",
-        "Freehold records show a higher median and a longer upper tail than "
-        "Leasehold.",
-        "Tenure carries usable signal and is kept as a model feature.",
-        "The Mixed group is small (n shown); it cannot support firm conclusions."),
-    "fig14_psf_vs_price_clean.png": (
-        "Figure 14 — Median PSF against Median Price by category",
-        "How strongly is the market rate per square foot related to total price?",
-        "A positive relationship holds in both categories, but at similar PSF "
-        "levels Landed records reach higher total prices.",
-        "PSF is the model's strongest input, yet it cannot explain price alone.",
-        "Built-up size is unavailable, so the reason for the gap cannot be "
-        "confirmed from this dataset."),
-    "fig15_correlation_heatmap.png": (
-        "Figure 15 — Correlation matrix of encoded features",
-        "How do the encoded features relate to price and to each other?",
-        "Median PSF dominates; property-type and tenure indicators carry moderate "
-        "signal.",
-        "It supports the feature set chosen for modelling.",
-        "One-hot indicators of the same variable are negatively correlated by "
-        "construction, not by any real effect."),
-    "fig16_all_feature_correlations.png": (
-        "Figure 16 — Correlation with price for all encoded features",
-        "Which individual categories move price up or down?",
-        "Selangor and Kuala Lumpur push price up; Perak and Kedah pull it down; "
-        "Flats and Apartments are the strongest negative property types.",
-        "It quantifies the location and type effects seen in the earlier charts.",
-        "These are group differences, not causal effects; categories with very "
-        "few records are greyed out."),
-    "fig17_top10_transactions.png": (
-        "Figure 17 — Most-transacted townships",
-        "Do the busiest townships also have the highest prices?",
-        "The busiest townships are moderately priced rather than the most "
-        "expensive.",
-        "Transaction volume reflects market activity more than price level.",
-        "The dataset has no supply or income variables, so no cause can be "
-        "established."),
-    "fig18_model_comparison.png": (
-        "Figure 18 — Test-set metric comparison",
-        "How do the four models compare on unseen data?",
-        "All three ensembles beat the Decision Tree baseline clearly; XGBoost "
-        "and LightGBM are close together at the top.",
-        "It demonstrates that ensembling improves on a single tree.",
-        "The highlighted model was selected on cross-validation, not on these "
-        "test bars."),
-    "fig19_cv_stability.png": (
-        "Figure 19 — Overfitting and cross-validation stability",
-        "Which model generalises most consistently?",
-        "The baseline memorises its training data; the ensembles show much "
-        "smaller train–test gaps.",
-        "Stability matters as much as the average score when selecting a model.",
-        "Lower point = better average CV RMSE; shorter error bar = greater "
-        "fold-to-fold stability."),
-    "fig20_pred_actual_residual.png": (
-        "Figure 20 — Predicted versus actual, and residuals",
-        "Where does the selected model make its errors?",
-        "Predictions track the perfect-prediction line in the mainstream range, "
-        "but the error spread widens at higher predicted prices.",
-        "This heteroscedasticity supports the limitation that the model is less "
-        "reliable for premium properties.",
-        "Residuals should scatter randomly around zero; a widening funnel does not."),
-    "fig21_split_importance.png": (
-        "Figure 21 — Split importance of the selected model",
-        "Which features does the model split on most often?",
-        "Median PSF is used far more than any other feature.",
-        "It gives a quick view of what the trees rely on.",
-        "Split counts favour continuous features with many possible split points; "
-        "read Figure 22 for the fairer measure."),
-    "fig22_permutation_importance.png": (
-        "Figure 22 — Permutation importance on the test set",
-        "How much does each of the five model inputs actually contribute?",
-        "Shuffling Median PSF degrades performance far more than shuffling any "
-        "other input.",
-        "This is measured on unseen data and is the preferred interpretation.",
-        "Importance is relative to this feature set; it is not a causal statement."),
+    "fig01_raw_target_distribution.png": ("Figure 1 — Raw target distribution", "Is the median price suitable for modelling as-is?", "The raw distribution is extremely right-skewed with a tail reaching RM11.4 million.", "Skew of this size distorts distance-based fences, which is why outliers were assessed on the log scale.", "The log panel is a viewing transformation; no record is deleted."),
+    "fig02_raw_numeric_boxplots.png": ("Figure 2 — Raw numeric attributes (log scale)", "How extreme are the values in each numeric column?", "All three columns are strongly right-skewed; a log axis is required to see the middle 50%.", "It shows why raw-scale IQR fences flag many legitimate high-value records.", "Points beyond the whiskers are statistical flags, not proven data errors."),
+    "fig03_raw_state_counts.png": ("Figure 3 — Raw record count by state", "How evenly is the dataset spread across Malaysia?", "Selangor and Johor dominate; several territories have fewer than five records.", "The model generalises best to well-represented states.", "Small-sample states cannot support reliable conclusions."),
+    "fig04_raw_tenure_type.png": ("Figure 4 — Raw tenure and property-type labels", "What cleaning do the categorical columns need?", "Tenure contains the same pair written in two orders; Type holds 46 multi-value strings.", "Both need standardising before they can be encoded.", "Primary_Type takes the first listed type, which is an operational assumption."),
+    "fig05_raw_numeric_correlation.png": ("Figure 5 — Raw numeric correlation", "Which numeric column is most related to price?", "Median PSF is strongly related to price; transactions are almost unrelated.", "It sets the expectation that PSF will dominate the model.", "Correlation measures linear association only."),
+    "fig06_raw_psf_vs_price.png": ("Figure 6 — Median PSF against Median Price (raw)", "What does the PSF–price relationship look like before cleaning?", "A positive relationship is visible once density and scale are handled.", "It justifies both the log-scale treatment and the outlier assessment.", "The zoomed panel changes the visible range only and deletes no records."),
+    "fig07_outlier_before_after.png": ("Figure 7 — Price before and after outlier deletion", "What did log-IQR deletion actually remove?", "86 of 2,000 records were removed; the retained range is about RM90K–RM1.77M.", "It defines the market scope the model is valid for.", "Removed records are not necessarily errors — this is a scope restriction."),
+    "fig08_price_distribution_clean.png": ("Figure 8 — Price distribution before and after cleaning", "How did the shape of the target change?", "Raw-price skewness falls from about 8.8 to about 1.7 while the bulk of the market is untouched.", "A less distorted target is easier for the models to fit.", "This is raw-price skewness, not log-price skewness (≈0.11)."),
+    "fig09_category_donut.png": ("Figure 9 — Landed versus High-Rise share", "What is the composition of the cleaned dataset?", "About 71% of records are Landed and 29% High-Rise.", "Landed property types dominate the data the model learns from.", "This is a share of records, not of Malaysia's housing stock."),
+    "fig10_state_counts_clean.png": ("Figure 10 — Records per state after cleaning", "Does cleaning change the geographic balance?", "Selangor and Johor still account for roughly 47% of records.", "Imbalance persists and remains a stated limitation.", "Counts are township-level records, not unique township names."),
+    "fig11_state_violin.png": ("Figure 11 — Price distribution across major states", "How do prices differ between the best-represented states?", "Kuala Lumpur and Selangor sit clearly higher with long upper tails.", "Location is a strong price driver, supporting State as a model feature.", "States were chosen by record count, not by price; n is shown per state."),
+    "fig12_type_boxplot.png": ("Figure 12 — Price by property type", "Which property types command higher prices?", "A clear ladder runs from Flats at the bottom to Bungalows at the top.", "Property type is a strong predictor and is retained as a model feature.", "Outlier markers are hidden for readability; the observations remain in the analysis."),
+    "fig13_tenure_violin.png": ("Figure 13 — Price distribution by tenure", "Is tenure associated with price?", "Freehold records show a higher median and a longer upper tail than Leasehold.", "Tenure carries usable signal and is kept as a model feature.", "The Mixed group is small; it cannot support firm conclusions."),
+    "fig14_psf_vs_price_clean.png": ("Figure 14 — Median PSF against Median Price by category", "How strongly is the market rate related to total price?", "A positive relationship holds in both categories, but at similar PSF levels Landed records reach higher total prices.", "PSF is the model's strongest input, yet it cannot explain price alone.", "Built-up size is unavailable, so the reason for the gap cannot be confirmed."),
+    "fig15_correlation_heatmap.png": ("Figure 15 — Correlation matrix of encoded features", "How do the encoded features relate to price and each other?", "Median PSF dominates; property-type and tenure indicators carry moderate signal.", "It supports the feature set chosen for modelling.", "One-hot indicators of the same variable are negatively correlated by construction."),
+    "fig16_all_feature_correlations.png": ("Figure 16 — Correlation with price, all encoded features", "Which individual categories move price up or down?", "Selangor and Kuala Lumpur push price up; Perak and Kedah pull it down.", "It quantifies the location and type effects seen in earlier charts.", "These are group differences, not causal effects; tiny categories are greyed out."),
+    "fig17_top10_transactions.png": ("Figure 17 — Most-transacted townships", "Do the busiest townships also have the highest prices?", "The busiest townships are moderately priced rather than the most expensive.", "Transaction volume reflects market activity more than price level.", "No supply or income variables exist, so no cause can be established."),
+    "fig18_model_comparison.png": ("Figure 18 — Test-set metric comparison", "How do the four models compare on unseen data?", "All three ensembles beat the Decision Tree baseline clearly; the top two are close together.", "It demonstrates that ensembling improves on a single tree.", "The highlighted model was selected on cross-validation, not on these test bars."),
+    "fig19_cv_stability.png": ("Figure 19 — Overfitting and cross-validation stability", "Which model generalises most consistently?", "The baseline memorises its training data; the ensembles show much smaller train–test gaps.", "Stability matters as much as the average score when selecting a model.", "Lower point = better average CV RMSE; shorter error bar = greater stability."),
+    "fig20_pred_actual_residual.png": ("Figure 20 — Predicted versus actual, and residuals", "Where does the selected model make its errors?", "Predictions track the perfect-prediction line in the mainstream range, but errors widen at higher prices.", "This heteroscedasticity supports the limitation about premium properties.", "Residuals should scatter randomly around zero; a widening funnel does not."),
+    "fig21_split_importance.png": ("Figure 21 — Split importance of the selected model", "Which features does the model split on most often?", "Median PSF is used far more than any other feature.", "It gives a quick view of what the trees rely on.", "Split counts favour continuous features; Figure 22 is the fairer measure."),
+    "fig22_permutation_importance.png": ("Figure 22 — Permutation importance on the test set", "How much does each of the five model inputs actually contribute?", "Shuffling Median PSF degrades performance far more than any other input.", "This is measured on unseen data and is the preferred interpretation.", "Importance is relative to this feature set; it is not a causal statement."),
 }
 
 
 def render_gallery(filenames: list[str]) -> None:
-    """One consistent figure card per figure: number, title, question, chart,
-    key finding, business meaning, presentation point, caution.
-    Charts are always full-width so long labels stay readable."""
     shown = 0
     for name in filenames:
         path = FIGURES_DIR / name
         if not path.exists():
             continue
         title, question, finding, matters, caution = FIGURE_NOTES[name]
-        number, _, heading = title.partition(" — ")
-        st.markdown(
-            f'<div class="mh-fig"><div class="num">{number}</div>'
-            f'<h4>{heading}</h4>'
-            f'<p><strong>Question answered:</strong> {question}</p></div>',
-            unsafe_allow_html=True)
-        with st.container(border=True):
-            st.image(str(path), use_container_width=True,
-                     caption=f"{number}. {heading}.")
-        st.markdown(
-            f'<div class="mh-fig">'
-            f'<p><strong>Key finding:</strong> {finding}</p>'
-            f'<p><strong>Business meaning:</strong> {matters}</p>'
-            f'<p><strong>Presentation talking point:</strong> "{finding}"</p>'
-            f'<p class="cap"><strong>&#9888; Caution:</strong> {caution}</p></div>',
-            unsafe_allow_html=True)
-        st.markdown('<div class="mh-divider"></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="mh-fig"><h4>{title}</h4>'
+                    f'<p><strong>Question answered:</strong> {question}</p></div>',
+                    unsafe_allow_html=True)
+        st.image(str(path), use_container_width=True)
+        st.markdown(f'<div class="mh-fig">'
+                    f'<p><strong>Key finding:</strong> {finding}</p>'
+                    f'<p><strong>Why it matters:</strong> {matters}</p>'
+                    f'<p class="mh-fine"><strong>Caution:</strong> {caution}</p></div>',
+                    unsafe_allow_html=True)
+        st.markdown("")
         shown += 1
     if shown == 0:
-        st.info("No figures found for this section. **How to fix:** copy the "
-                "`figures/` folder produced by the notebook next to "
-                "`streamlit_app.py`, then reload the app.")
+        st.info("No figures found. Copy the `figures/` folder produced by the "
+                "notebook next to `streamlit_app.py` to enable this gallery.")
 
 
-# ---------------------------------------------------------------------------
-# TABS
-# ---------------------------------------------------------------------------
-def render_model_summary(results: pd.DataFrame, recommended: str) -> None:
-    """Compact model-summary cards shown under the hero on every visit."""
-    row = results.iloc[0]
-    stat_grid([
-        ("Recommended model", recommended.replace(" (Baseline)", ""), True),
-        ("CV RMSE", f"RM {row['CV_RMSE_mean']/1000:,.1f}K", False),
-        ("Test RMSE", f"RM {row['RMSE_test']/1000:,.1f}K", False),
-        ("Test MAE", f"RM {row['MAE_test']/1000:,.1f}K", False),
-        ("Test R²", f"{row['R2_test']:.3f}", False),
-    ])
-    best_test = results.sort_values("RMSE_test").iloc[0]["Model"]
-    line = ("Recommended using training-set cross-validation. "
-            "Test metrics are reported for transparency and were not used to "
-            "select the model.")
-    if best_test != recommended:
-        line += (f" <strong>{best_test}</strong> posts the best hold-out test "
-                 f"metrics, but <strong>{recommended}</strong> had the lowest "
-                 f"cross-validation RMSE — see the Model Report tab for the "
-                 f"tie explanation.")
-    st.markdown(f'<p class="mh-source">{line}</p>', unsafe_allow_html=True)
-
-
-def tab_estimator(data: pd.DataFrame, results: pd.DataFrame) -> None:
+# ===========================================================================
+# PAGE 1 — PRICE PREDICTION
+# ===========================================================================
+def page_prediction(data: pd.DataFrame, results: pd.DataFrame) -> None:
     recommended = results.iloc[0]["Model"]
 
-    if "reset_counter" not in st.session_state:
-        st.session_state.reset_counter = 0
-    suffix = st.session_state.reset_counter
+    if "form_version" not in st.session_state:
+        st.session_state.form_version = 0
+    version = st.session_state.form_version
 
-    # ---- STEP 1  LOCATION -------------------------------------------------
-    step_header(1, "Location",
-                "Dependent dropdowns: pick a state, then an area within it.")
+    # ---------- Step 1: location ----------
+    step_heading(1, "Location")
     with st.container(border=True):
-        left, right = st.columns(2)
-        with left:
+        loc_left, loc_right = st.columns(2)
+        with loc_left:
             state = st.selectbox("State", sorted(data["State"].unique()),
-                                 key=f"state_{suffix}")
-        with right:
-            area = st.selectbox("Area", area_options(data, state),
-                                key=f"area_{state}_{suffix}",
-                                help="Used to look up representative 2025 dataset "
-                                     "values. Area is not a model feature.")
-        st.caption("Area and township selections help retrieve representative "
-                   "2025 market values. They are not direct model inputs — the "
-                   "trained pipeline receives state, tenure, property type, "
-                   "median PSF and transactions only.")
+                                 key=f"state_{version}")
+        with loc_right:
+            area_text = st.text_input(
+                "Area or township",
+                placeholder="Example: Skudai, Taman Molek, Area X",
+                key=f"area_{state}_{version}",
+                help="Enter any area or township. When an exact location is "
+                     "unavailable in the 2025 dataset, the application will use a "
+                     "broader reference group from the selected state.")
 
-    # ---- STEP 2  PROPERTY DETAILS ----------------------------------------
-    step_header(2, "Property details",
-                "Both of these are real model inputs.")
+        area_matched, suggestions = resolve_area(area_text, data, state)
+        if suggestions:
+            notice("info", "Did you mean",
+                   "Close matches in the dataset: <strong>"
+                   + "</strong>, <strong>".join(suggestions) + "</strong>. "
+                   "You can keep your own spelling — the prediction still works.")
+        st.markdown('<p class="mh-fine">Area is used to locate suitable reference '
+                    'market values. It is not directly passed to the trained '
+                    'model.</p>', unsafe_allow_html=True)
+
+    # ---------- Step 2: property ----------
+    step_heading(2, "Property details")
     with st.container(border=True):
-        left, right = st.columns(2)
-        with left:
+        prop_left, prop_right = st.columns(2)
+        with prop_left:
             ptype = st.selectbox("Property type",
                                  sorted(data["Primary_Type"].unique()),
-                                 key=f"ptype_{suffix}",
-                                 help="The primary type recorded for the township.")
-        with right:
+                                 key=f"ptype_{version}")
+        with prop_right:
             tenure = st.selectbox("Tenure", sorted(data["Tenure"].unique()),
-                                  key=f"tenure_{suffix}",
-                                  help="Freehold, Leasehold, or Mixed where the "
-                                       "township records list both.")
+                                  key=f"tenure_{version}")
 
-    ref = derive_reference(data, state, area, ptype, tenure)
-    conf_text, conf_level = confidence_label(ref["n"], ref["is_exact"])
+    reference = derive_reference(data, state, area_matched, ptype, tenure)
 
-    # ---- STEP 3  DATASET REFERENCE ---------------------------------------
-    step_header(3, "Dataset reference values",
-                "Retrieved automatically from the static 2025 dataset.")
+    # ---------- Step 3: market features ----------
+    step_heading(3, "Market features")
     with st.container(border=True):
-        r1, r2, r3, r4 = st.columns(4)
-        r1.metric("Reference median PSF (RM)", f"{ref['psf']:,.0f}")
-        r2.metric("Reference transactions", f"{ref['transactions']:,}")
-        r3.metric("Matching records", f"{ref['n']:,}")
-        r4.metric("Dataset year", "2025")
-        st.markdown(
-            f'<div class="mh-note {conf_level}">'
-            f'{quality_badge(conf_text, conf_level)} &nbsp;Values are the median of '
-            f'<strong>{ref["n"]:,}</strong> record(s) matching the hierarchy level '
-            f'<strong>{ref["level"]}</strong>.'
-            + ("" if ref["is_exact"] else
-               " No exact area + property type + tenure records were available, so "
-               "the system fell back to this broader group. Nothing is approximated "
-               "silently — the level above is always the group actually used.")
-            + "</div>", unsafe_allow_html=True)
+        st.markdown('<p class="mh-fine">The suggested values come from the nearest '
+                    'available 2025 reference group. They may be adjusted when you '
+                    'have more appropriate market information. Both are real inputs '
+                    'to the trained model.</p>', unsafe_allow_html=True)
+        market_left, market_right = st.columns(2)
+        widget_key = f"{state}_{area_matched or 'none'}_{ptype}_{tenure}_{version}"
+        with market_left:
+            psf = st.number_input(
+                "Median price per square foot (RM)",
+                min_value=1, max_value=100_000, step=10,
+                value=int(reference["psf"]), key=f"psf_{widget_key}")
+        with market_right:
+            transactions = st.number_input(
+                "Number of township transactions",
+                min_value=1, max_value=100_000, step=1,
+                value=int(reference["transactions"]), key=f"txn_{widget_key}")
 
-    # ---- STEP 4  ADVANCED OPTIONS ----------------------------------------
-    step_header(4, "Advanced options (optional)",
-                "Model comparison and optional scenario adjustments.")
-    with st.expander("Advanced model options and scenario adjustments",
-                     expanded=False):
-        st.caption("Everything in this panel is optional. The project conclusion "
-                   "uses the cross-validation-selected model and the dataset "
-                   "reference values.")
-        labels = {}
-        for _, row_ in results.iterrows():
-            tag = " — Recommended by CV" if row_["Model"] == recommended else ""
-            if "Baseline" in row_["Model"]:
-                tag = " — Baseline"
-            labels[f"{row_['Model']}{tag}"] = row_["Model"]
-        chosen_label = st.selectbox("Model used for prediction",
-                                    list(labels.keys()), index=0,
-                                    help="Switching the model changes the "
-                                         "prediction and the displayed metrics. It "
-                                         "does not change the project's stated "
-                                         "recommendation.")
-        model_name = labels[chosen_label]
+        kind, label, body = fallback_message(reference, area_text, area_matched, state)
+        notice(kind, label, body)
 
-        st.markdown('<div class="mh-divider"></div>', unsafe_allow_html=True)
-        st.markdown("**Optional scenario adjustment**")
-        st.caption("Override the dataset reference values to explore a different "
-                   "market scenario. Only these two values are adjustable, because "
-                   "the pipeline accepts five features.")
-        a_left, a_right = st.columns(2)
-        with a_left:
-            psf = st.slider("Custom median price per square foot (RM)",
-                            int(data["Median_PSF"].min()),
-                            int(data["Median_PSF"].max()), int(ref["psf"]),
-                            key=f"psf_{state}_{area}_{ptype}_{tenure}_{suffix}")
-        with a_right:
-            transactions = st.slider("Custom transactions in the township",
-                                     int(data["Transactions"].min()),
-                                     int(data["Transactions"].max()),
-                                     int(ref["transactions"]),
-                                     key=f"txn_{state}_{area}_{ptype}_{tenure}_{suffix}")
-        if st.button("Reset to dataset values", use_container_width=False):
-            st.session_state.reset_counter += 1
-            st.rerun()
+        bounds = psf_range(data, state)
+        if psf < bounds["min"] or psf > bounds["max"]:
+            notice("danger", "Outside the observed range",
+                   f"The selected PSF of RM{psf:,} is outside the range observed in "
+                   f"{state} (RM{bounds['min']:,.0f} – RM{bounds['max']:,.0f}). "
+                   f"This is an extrapolation and should be interpreted cautiously.")
 
-    row = results[results["Model"] == model_name].iloc[0]
-    try:
-        model = load_model(model_name)
-    except FileNotFoundError as exc:
-        st.error(f"Model file not found: `{exc}`.  \n"
-                 "**How to fix:** unzip the `models/` folder next to "
-                 "`streamlit_app.py`, then reload the app.")
-        st.stop()
-
+    # ---------- Step 4: model ----------
+    step_heading(4, "Model")
     with st.container(border=True):
-        stat_grid([
-            ("Model in use", model_name.replace(" (Baseline)", ""),
-             model_name == recommended),
-            ("CV RMSE", f"RM {row['CV_RMSE_mean']/1000:,.1f}K", False),
-            ("Test RMSE", f"RM {row['RMSE_test']/1000:,.1f}K", False),
-            ("Test MAE", f"RM {row['MAE_test']/1000:,.1f}K", False),
-            ("Test R²", f"{row['R2_test']:.3f}", False),
-        ])
-        if model_name == recommended:
-            st.markdown(
-                f'<div class="mh-note ok">{quality_badge("Recommended model", "ok")} '
-                f'&nbsp;<strong>{model_name}</strong> was selected by '
-                f'cross-validation RMSE on the training set — the official choice '
-                f'for this project.</div>', unsafe_allow_html=True)
-        else:
-            st.markdown(
-                f'<div class="mh-note warn">{quality_badge("Comparison model", "warn")} '
-                f'&nbsp;You are using <strong>{model_name}</strong> for academic '
-                f'comparison. The project\'s selected model remains '
-                f'<strong>{recommended}</strong>, chosen by cross-validation.</div>',
-                unsafe_allow_html=True)
+        with st.expander("Advanced model options"):
+            st.markdown('<p class="mh-fine">The project conclusion uses the '
+                        'cross-validation-selected model. The others are offered for '
+                        'academic comparison; switching them does not change the '
+                        "project's stated conclusion.</p>", unsafe_allow_html=True)
+            option_labels = {}
+            for _, row in results.iterrows():
+                suffix = ""
+                if "Baseline" in row["Model"]:
+                    suffix = " — Baseline"
+                elif row["Model"] == recommended:
+                    suffix = " — Recommended by cross-validation"
+                option_labels[f"{row['Model']}{suffix}"] = row["Model"]
+            picked = st.selectbox("Model used for prediction", list(option_labels),
+                                  index=0, key=f"model_{version}")
+            model_name = option_labels[picked]
 
-        if psf != int(ref["psf"]) or transactions != int(ref["transactions"]):
-            st.markdown(
-                f'<div class="mh-note warn">{quality_badge("Scenario adjustment", "warn")} '
-                f'&nbsp;Using adjusted values (PSF RM{psf:,.0f}, {transactions:,} '
-                f'transactions) instead of the dataset reference (PSF '
-                f'RM{ref["psf"]:,.0f}, {ref["transactions"]:,} transactions).</div>',
-                unsafe_allow_html=True)
+        metrics = results[results["Model"] == model_name].iloc[0]
+        try:
+            model = load_model(model_name)
+        except FileNotFoundError as exc:
+            st.error(f"**Model file not found:** `models/{exc}`  \n"
+                     "Unzip the `models/` folder next to `streamlit_app.py` so the "
+                     "`.pkl` files sit inside it.")
+            st.stop()
 
-        level, message = psf_status(psf, psf_reference(data, state), state)
-        note(message, level)
+        info_1, info_2, info_3 = st.columns(3)
+        info_1.metric("Model used", model_name)
+        info_2.metric("Test MAE", f"RM {metrics['MAE_test']/1000:,.1f}K")
+        info_3.metric("Test R²", f"{metrics['R2_test']:.3f}")
+        if model_name != recommended:
+            notice("warn", "Not the recommended model",
+                   f"You are using <strong>{model_name}</strong> for comparison. The "
+                   f"project's selected model is <strong>{recommended}</strong>, "
+                   f"chosen by cross-validation.")
 
-    # ---- STEP 5  ESTIMATE -------------------------------------------------
-    step_header(5, "Estimate", "One action produces the township-level benchmark.")
-    b_left, b_right = st.columns([3, 1])
-    with b_left:
-        predict = st.button("Estimate Township Median Price", type="primary",
+    # ---------- Step 5: predict ----------
+    st.markdown("")
+    action_left, action_right = st.columns([3, 1])
+    with action_left:
+        predict = st.button("Predict township median price", type="primary",
                             use_container_width=True)
-    with b_right:
-        if st.button("Reset inputs", use_container_width=True):
-            st.session_state.reset_counter += 1
+    with action_right:
+        if st.button("Reset form", use_container_width=True):
+            st.session_state.form_version += 1
             st.rerun()
+
     if not predict:
-        st.caption("Select your options above, then press "
-                   "**Estimate Township Median Price**.")
         return
 
+    # Exactly the five trained features - Area is never included
     features = pd.DataFrame([{
         "State": state, "Tenure": tenure, "Primary_Type": ptype,
         "Median_PSF": psf, "Transactions": transactions}])[MODEL_FEATURES]
     try:
         prediction = float(model.predict(features)[0])
     except Exception:
-        st.error("The model could not produce a prediction for these inputs. "
-                 "**How to fix:** re-export the models from the notebook so the "
-                 "pipelines match this dataset, then reload the app.")
+        st.error("**The model could not produce a prediction for these inputs.** "
+                 "The saved pipeline may expect different columns — re-export the "
+                 "models from the notebook and try again.")
         return
 
-    location = state if area == ALL_AREAS else f"{area}, {state}"
+    location = f"{area_text.strip()}, {state}" if area_text.strip() else state
     st.markdown(
         f"""
         <div class="mh-result">
-            <div class="label">Estimated township-level median price</div>
-            <div class="value">RM {prediction:,.0f}</div>
-            <div class="sub">{ptype} · {tenure} · {location}</div>
-            <div class="sub">Model used: <strong>{model_name}</strong> ·
-                Typical test MAE: <strong>RM {row['MAE_test']:,.0f}</strong> ·
-                {quality_badge(conf_text, conf_level)} ·
-                {ref['n']:,} matching record(s)</div>
-            <div class="note">This estimate represents a township-level median
-                benchmark based on the static 2025 dataset. It is not a formal
-                valuation of an individual property.<br>
-                MAE is the model's average absolute error on the test dataset. It
-                is not a confidence interval or a statistically valid prediction
-                interval.</div>
+            <div class="cap">Estimated township-level median price</div>
+            <div class="amount">RM {prediction:,.0f}</div>
+            <div class="mh-grid">
+                <div><span>Location</span>{location}</div>
+                <div><span>Property type</span>{ptype}</div>
+                <div><span>Tenure</span>{tenure}</div>
+                <div><span>Median PSF used</span>RM {psf:,}</div>
+                <div><span>Transactions used</span>{transactions:,}</div>
+                <div><span>Model</span>{model_name}</div>
+                <div><span>Test MAE</span>RM {metrics['MAE_test']:,.0f}</div>
+                <div><span>Test R²</span>{metrics['R2_test']:.3f}</div>
+            </div>
         </div>
         """, unsafe_allow_html=True)
 
-    # ---- STEP 6  SIMILAR RECORDS -----------------------------------------
-    # Same pool as the reference values - one consistent comparison group
-    pool = ref["pool"]
-    similar = find_similar_records(pool, psf, transactions)
-    group_median = ref["price_median"]
+    st.markdown(f'<p class="mh-fine" style="margin-top:12px">'
+                f'Reference group used for the suggested market values: '
+                f'<strong>{reference["label"]}</strong> '
+                f'({reference["n"]} record(s), level {reference["level"]} of 7).'
+                f'</p>', unsafe_allow_html=True)
 
-    step_header(6, "Similar 2025 township records",
-                "Evidence behind the estimate, from one consistent comparison group.")
-    with st.container(border=True):
-        st.markdown('<p class="mh-source">Source: cleaned Malaysia housing '
-                    'dataset, 2025. These are historical dataset records and are '
-                    'not live property-market data.</p>', unsafe_allow_html=True)
-        st.markdown(summarise_against_group(prediction, group_median))
-        st.caption(f"Comparison group: {ref['n']} record(s) matching "
-                   f"{ref['level']}. The same group supplies the reference "
-                   f"values, the group median and the records below.")
-        render_comparison_chart(prediction, group_median, similar)
+    notice("info", "How to read this estimate",
+           "This estimate is a township-level median benchmark based on the "
+           "selected features and available 2025 market references. It is not a "
+           "formal valuation of an individual property.<br><br>"
+           "MAE is the model's average absolute error on the test dataset. It is "
+           "not a confidence interval or a prediction range.")
 
-        st.markdown(f"**{len(similar)} most similar record(s)** — ranked within "
-                    f"the same comparison group")
-        table = similar[["Township", "Area", "Median_Price", "Median_PSF",
-                         "Transactions"]].reset_index(drop=True)
+    if reference["level"] >= 4 and area_text.strip():
+        st.markdown('<p class="mh-fine">The entered location was not available in '
+                    'the dataset, so the prediction uses broader market reference '
+                    'values. The model has not learned this specific area — Area is '
+                    'not one of its five features.</p>', unsafe_allow_html=True)
+
+    st.markdown('<p class="mh-fine">Looking for comparable historical records? '
+                'They are in the <strong>EDA &amp; Market Insights</strong> tab, '
+                'under Market Data Explorer.</p>', unsafe_allow_html=True)
+
+
+# ===========================================================================
+# PAGE 2 — EDA & MARKET INSIGHTS
+# ===========================================================================
+def page_insights(data: pd.DataFrame) -> None:
+    explorer, figures = st.tabs(["Market Data Explorer", "EDA figures"])
+
+    with explorer:
+        st.markdown("#### Historical 2025 dataset exploration")
+        notice("info", "What this section is",
+               "This section explores records contained in the project dataset. It "
+               "is separate from the machine-learning prediction tool.")
+
+        with st.container(border=True):
+            f1, f2 = st.columns(2)
+            with f1:
+                state = st.selectbox("State", sorted(data["State"].unique()),
+                                     key="explore_state")
+                areas = ["All areas"] + sorted(
+                    data.loc[data["State"] == state, "Area"].dropna().unique())
+                area = st.selectbox("Area", areas, key=f"explore_area_{state}")
+            with f2:
+                types = ["All types"] + sorted(data["Primary_Type"].unique())
+                ptype = st.selectbox("Property type", types, key="explore_type")
+                tenures = ["All tenures"] + sorted(data["Tenure"].unique())
+                tenure = st.selectbox("Tenure", tenures, key="explore_tenure")
+
+        subset = data[data["State"] == state]
+        if area != "All areas":
+            subset = subset[subset["Area"] == area]
+        if ptype != "All types":
+            subset = subset[subset["Primary_Type"] == ptype]
+        if tenure != "All tenures":
+            subset = subset[subset["Tenure"] == tenure]
+
+        if subset.empty:
+            notice("warn", "No matching records",
+                   "No record in the 2025 dataset matches this combination. "
+                   "Try widening one of the filters.")
+            return
+
+        m1, m2, m3, m4 = st.columns(4)
+        m1.metric("Matching records", f"{len(subset):,}")
+        m2.metric("Median price", f"RM {subset['Median_Price'].median()/1000:,.0f}K")
+        m3.metric("Median PSF", f"RM {subset['Median_PSF'].median():,.0f}")
+        m4.metric("Median transactions", f"{subset['Transactions'].median():,.0f}")
+
+        st.markdown("##### Matching records")
+        table = subset[["Township", "Area", "Primary_Type", "Tenure",
+                        "Median_Price", "Median_PSF", "Transactions"]].copy()
         st.dataframe(pd.DataFrame({
             "Township": table["Township"].str.title(),
             "Area": table["Area"],
-            "Median Price (RM)": table["Median_Price"].map(lambda v: f"{v:,.0f}"),
+            "Property type": table["Primary_Type"],
+            "Tenure": table["Tenure"],
+            "Median price (RM)": table["Median_Price"].map(lambda v: f"{v:,.0f}"),
             "Median PSF (RM)": table["Median_PSF"].map(lambda v: f"{v:,.0f}"),
-            "Transactions": table["Transactions"]}),
-            use_container_width=True, hide_index=True)
-        st.caption("Median Price and Median PSF are township medians in Ringgit "
-                   "Malaysia; Transactions is the recorded transaction count.")
+            "Transactions": table["Transactions"],
+        }), use_container_width=True, hide_index=True, height=320)
 
-        with st.expander("Methodology — how similarity is calculated"):
-            st.write(
-                f"Records come from the comparison group above. Each is scored as "
-                f"{W_PSF:.0%} × the absolute percentage difference in median price "
-                f"per square foot plus {W_TXN:.0%} × the absolute difference in "
-                f"transactions, normalised by the range within the group. A lower "
-                f"score means a closer match. **The weights are a presentation "
-                f"choice reflecting the much stronger evidence for Median PSF; "
-                f"they have not been statistically validated.**")
-            st.dataframe(
-                similar[["Township", "Median_PSF", "Transactions",
-                         "Similarity_Score"]]
-                .rename(columns={"Median_PSF": "Median PSF (RM)",
-                                 "Similarity_Score": "Similarity score"})
-                .round({"Similarity score": 3}).reset_index(drop=True),
-                use_container_width=True, hide_index=True)
+        st.markdown("##### Closest records to a chosen market rate")
+        c1, c2 = st.columns(2)
+        with c1:
+            ref_psf = st.number_input("Median PSF to compare against (RM)",
+                                      min_value=1, max_value=100_000, step=10,
+                                      value=int(subset["Median_PSF"].median()),
+                                      key="explore_psf")
+        with c2:
+            ref_txn = st.number_input("Transactions to compare against",
+                                      min_value=1, max_value=100_000, step=1,
+                                      value=int(subset["Transactions"].median()),
+                                      key="explore_txn")
+
+        similar = find_similar_records(subset, ref_psf, ref_txn)
+        st.dataframe(pd.DataFrame({
+            "Township": similar["Township"].str.title(),
+            "Area": similar["Area"],
+            "Median price (RM)": similar["Median_Price"].map(lambda v: f"{v:,.0f}"),
+            "Median PSF (RM)": similar["Median_PSF"].map(lambda v: f"{v:,.0f}"),
+            "Transactions": similar["Transactions"],
+            "Similarity score": similar["Similarity_Score"].round(3),
+        }), use_container_width=True, hide_index=True)
+        st.markdown('<p class="mh-fine">Score = 0.80 × absolute percentage '
+                    'difference in median PSF + 0.20 × normalised difference in '
+                    'transactions. Lower is closer. The weights are a presentation '
+                    'choice and have not been statistically validated.</p>',
+                    unsafe_allow_html=True)
+
+        if PLOTLY_AVAILABLE and len(similar):
+            group_median = float(subset["Median_Price"].median())
+            labels = ["Group median"] + [str(t).title() for t in similar["Township"]]
+            values = [group_median] + [float(v) for v in similar["Median_Price"]]
+            colours = ["#3B82F6"] + ["#64748B"] * len(similar)
+            figure = go.Figure(go.Bar(
+                x=labels, y=values, marker_color=colours,
+                text=[f"RM {v/1000:,.0f}K" for v in values], textposition="outside",
+                hovertemplate="%{x}<br>RM %{y:,.0f}<extra></extra>"))
+            figure.update_layout(
+                height=380, margin=dict(l=10, r=10, t=30, b=90),
+                paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+                font=dict(color="#F8FAFC", size=12), showlegend=False,
+                yaxis=dict(title="Median price (RM)",
+                           gridcolor="rgba(148,163,184,0.18)", tickformat=",.0f"),
+                xaxis=dict(tickangle=-30))
+            st.plotly_chart(figure, use_container_width=True)
+
+    with figures:
+        sections = {
+            "Data quality and outlier treatment":
+                ["fig02_raw_numeric_boxplots.png", "fig04_raw_tenure_type.png",
+                 "fig07_outlier_before_after.png"],
+            "Housing-price distribution":
+                ["fig01_raw_target_distribution.png",
+                 "fig08_price_distribution_clean.png"],
+            "State and property-type comparisons":
+                ["fig03_raw_state_counts.png", "fig10_state_counts_clean.png",
+                 "fig11_state_violin.png", "fig12_type_boxplot.png",
+                 "fig09_category_donut.png"],
+            "Tenure comparison": ["fig13_tenure_violin.png"],
+            "PSF–price relationship":
+                ["fig06_raw_psf_vs_price.png", "fig14_psf_vs_price_clean.png"],
+            "Correlation analysis":
+                ["fig05_raw_numeric_correlation.png",
+                 "fig15_correlation_heatmap.png",
+                 "fig16_all_feature_correlations.png"],
+            "Transaction activity": ["fig17_top10_transactions.png"],
+        }
+        choice = st.selectbox("Section", list(sections), key="eda_section")
+        render_gallery(sections[choice])
 
 
-def tab_eda() -> None:
-    section_header("EDA and market insights",
-                   "Figures generated by the project notebook from the same "
-                   "dataset the model was trained on.")
-    sections = {
-        "1. Data quality":
-            ["fig02_raw_numeric_boxplots.png", "fig04_raw_tenure_type.png",
-             "fig07_outlier_before_after.png"],
-        "2. Price distribution":
-            ["fig01_raw_target_distribution.png",
-             "fig08_price_distribution_clean.png"],
-        "3. State comparison":
-            ["fig03_raw_state_counts.png", "fig10_state_counts_clean.png",
-             "fig11_state_violin.png"],
-        "4. Property-type comparison":
-            ["fig12_type_boxplot.png", "fig09_category_donut.png"],
-        "5. Tenure comparison": ["fig13_tenure_violin.png"],
-        "6. PSF relationship":
-            ["fig06_raw_psf_vs_price.png", "fig14_psf_vs_price_clean.png"],
-        "7. Correlation":
-            ["fig05_raw_numeric_correlation.png", "fig15_correlation_heatmap.png",
-             "fig16_all_feature_correlations.png"],
-        "8. Transaction activity": ["fig17_top10_transactions.png"],
-    }
-    with st.container(border=True):
-        choice = st.selectbox("Section", list(sections.keys()),
-                              help="Each section groups the figures that answer "
-                                   "one analytical question.")
-        st.caption(f"Showing {len(sections[choice])} figure(s) in “{choice}”. "
-                   "Every figure is displayed full-width so long state and "
-                   "feature labels stay readable.")
-    st.markdown('<div class="mh-divider"></div>', unsafe_allow_html=True)
-    render_gallery(sections[choice])
-
-
-def tab_model_report(results: pd.DataFrame) -> None:
+# ===========================================================================
+# PAGE 3 — MODEL REPORT
+# ===========================================================================
+def page_model_report(results: pd.DataFrame) -> None:
     recommended = results.iloc[0]["Model"]
-
-    # ---- 1. Model overview ------------------------------------------------
-    section_header("Model report",
-                   "Four models, one selection rule, and the evidence behind it.")
-    with st.container(border=True):
-        st.markdown("##### 1. Model overview")
-        st.markdown(
-            "- **Decision Tree — baseline**, default configuration, untuned "
-            "reference point.\n"
-            "- **Random Forest**, bagged trees, tuned by grid search.\n"
-            "- **XGBoost**, level-wise regularised gradient boosting, tuned.\n"
-            "- **LightGBM**, leaf-wise gradient boosting, tuned.\n\n"
-            "All four use the same five inputs and the same preprocessing "
-            "pipeline (one-hot encoding + standardisation fitted inside the "
-            "pipeline)."
-        )
-
-    # ---- 2. Performance comparison ---------------------------------------
-    st.markdown("##### 2. Performance comparison")
     table = results.copy()
     table["CV Rank"] = table["CV_RMSE_mean"].rank().astype(int)
     table["Test Rank"] = table["RMSE_test"].rank().astype(int)
-    table["Selected by CV"] = ["Yes ✓" if m == recommended else "—"
-                               for m in table["Model"]]
-    display = pd.DataFrame({
+
+    st.markdown("#### Four-model comparison")
+    st.dataframe(pd.DataFrame({
         "Model": table["Model"],
         "CV Rank": table["CV Rank"],
-        "CV RMSE Mean": table["CV_RMSE_mean"].map(lambda v: f"RM {v/1000:,.1f}K"),
-        "CV RMSE Standard Deviation":
-            table["CV_RMSE_std"].map(lambda v: f"RM {v/1000:,.1f}K"),
+        "CV RMSE": table["CV_RMSE_mean"].map(lambda v: f"RM {v/1000:,.1f}K"),
+        "CV std": table["CV_RMSE_std"].map(lambda v: f"RM {v/1000:,.1f}K"),
         "Test Rank": table["Test Rank"],
         "Test RMSE": table["RMSE_test"].map(lambda v: f"RM {v/1000:,.1f}K"),
         "Test MAE": table["MAE_test"].map(lambda v: f"RM {v/1000:,.1f}K"),
         "Test R²": table["R2_test"].map(lambda v: f"{v:.3f}"),
         "Train–test gap": table["Gap_RMSE"].map(lambda v: f"RM {v/1000:,.1f}K"),
-        "Selected by CV": table["Selected by CV"]})
-    with st.container(border=True):
-        st.dataframe(display, use_container_width=True, hide_index=True)
-        st.caption("CV RMSE Mean is the 5-fold cross-validation error on the "
-                   "training set — the official selection criterion. Test columns "
-                   "describe unseen-data performance and were not used to select "
-                   "the model. A larger train–test gap indicates more overfitting.")
-        render_metric_chart(results)
+        "Selected by CV?": ["Yes" if m == recommended else ""
+                            for m in table["Model"]],
+    }), use_container_width=True, hide_index=True)
 
-    # ---- 3-6. Evidence figures -------------------------------------------
-    st.markdown("##### 3. Cross-validation stability, overfitting, diagnostics "
-                "and importance")
+    st.markdown("#### Model-selection explanation")
+    if len(results) >= 2:
+        gap = abs(results.iloc[0]["CV_RMSE_mean"] - results.iloc[1]["CV_RMSE_mean"])
+        notice("info", "The top two models are effectively tied",
+               f"Their cross-validation RMSE differs by only "
+               f"<strong>RM {gap:,.0f}</strong>, against a CV standard deviation of "
+               f"about RM {results.iloc[0]['CV_RMSE_std']:,.0f}. "
+               f"<strong>{recommended}</strong> was selected because it had the "
+               f"lowest CV mean and the lower CV variability, while "
+               f"<strong>{results.iloc[1]['Model']}</strong> achieved the stronger "
+               f"hold-out metrics. Selection was made on cross-validation only, so "
+               f"the test set remains an untouched estimate of unseen-data "
+               f"performance.")
+
     render_gallery(["fig18_model_comparison.png", "fig19_cv_stability.png",
                     "fig20_pred_actual_residual.png",
                     "fig22_permutation_importance.png",
                     "fig21_split_importance.png"])
 
-    # ---- 7. Model selection ----------------------------------------------
-    st.markdown("##### 7. Model selection")
-    top_two = results.head(2)
-    with st.container(border=True):
-        if len(top_two) == 2:
-            gap = abs(top_two.iloc[0]["CV_RMSE_mean"] - top_two.iloc[1]["CV_RMSE_mean"])
-            st.markdown(
-                f'<div class="mh-note ok">{quality_badge("Effectively tied", "info")} '
-                f'&nbsp;The top two models differ by only '
-                f'<strong>RM {gap:,.0f}</strong> in cross-validation RMSE, against '
-                f'a cross-validation standard deviation of about '
-                f'RM {top_two.iloc[0]["CV_RMSE_std"]:,.0f}. '
-                f'<strong>{recommended}</strong> was selected because it had the '
-                f'lowest CV mean and the lower CV variability, while '
-                f'<strong>{top_two.iloc[1]["Model"]}</strong> achieved the stronger '
-                f'hold-out test metrics. Selection was made on cross-validation '
-                f'only, so the test set stays an untouched estimate of unseen-data '
-                f'performance. The selected model is not claimed to be '
-                f'dramatically better.</div>', unsafe_allow_html=True)
-        st.markdown(
-            "**How to read the roles:** the model *selected by training-set CV* is "
-            "the project's answer; the model with the *best hold-out test "
-            "performance* is reported for transparency; the *baseline* Decision "
-            "Tree shows what a single untuned tree achieves and carries the "
-            "largest overfitting risk.")
-
-    # ---- 8. Limitations and improvements ---------------------------------
-    st.markdown("##### 8. Limitations and recommended improvements")
-    with st.container(border=True):
-        st.markdown("""
-**Key limitations**
-
-- Outlier deletion restricts the model to the mainstream market (about
-  RM90K–RM1.77M). It is less suitable for very low-cost or luxury properties.
-- Records are township-level: no bedroom count, land size, property age or
-  amenity data, which caps achievable accuracy.
-- Property type takes the first listed type from a multi-value label. About
-  18% of records use a label whose token order could change the assigned type.
-- The dataset is imbalanced toward Selangor and Johor and toward terrace houses.
-- The prototype needs a realistic median PSF; accuracy degrades without one.
-- Errors widen at higher prices (heteroscedasticity), so premium estimates are
-  less reliable.
-
-**Recommended improvements**
-
-- Property-level attributes (built-up size, age, bedrooms).
-- Geospatial features such as distance to MRT/LRT and schools.
-- Multi-year data to capture time trends.
-- Multi-label encoding of the raw property-type field.
-- Quantile regression to produce a statistically grounded range instead of a
-  point estimate.
+    st.markdown("#### Limitations")
+    st.markdown("""
+- **Scope restriction.** Deleting 86 log-IQR-flagged records narrows the model to
+  roughly RM90K–RM1.77M. Removed records are not proven errors, so the model is
+  simply not validated for very low-cost or luxury properties.
+- **Heteroscedasticity.** Residual spread widens at higher predicted prices, so
+  premium estimates are less reliable.
+- **Area is not a model feature.** It supplies reference market values only. A
+  genuinely area-aware model would require retraining all four pipelines with
+  Area included and a suitable high-cardinality encoding.
+- **`Primary_Type` assumption.** Assigned from the first listed type; about 18% of
+  records carry a label whose token order alone determines the assigned type.
+- **Missing attributes.** No bedroom count, land size, property age or amenity
+  proximity — these absent features cap achievable accuracy.
+- **Imbalance.** Records skew toward Selangor, Johor and terrace houses;
+  small-sample states are unreliable.
 """)
 
 
-# ---------------------------------------------------------------------------
+# ===========================================================================
 # SIDEBAR AND MAIN
-# ---------------------------------------------------------------------------
+# ===========================================================================
 def render_sidebar(recommended: str, record_count: int) -> None:
     with st.sidebar:
         st.markdown("### About this prototype")
         st.write("Estimates the **median house price of a township** from its "
-                 "state, tenure, property type, market activity and known median "
-                 "price per square foot.")
-        st.markdown('<div class="mh-divider"></div>', unsafe_allow_html=True)
+                 "state, property type, tenure and market rate per square foot.")
+        st.markdown("---")
         st.markdown(f"""
-**Dataset year** · 2025
-**Records after cleaning** · {record_count:,}
-**Prediction level** · Township-level median
-**Recommended model** · {recommended} (by cross-validation)
+        **Dataset year** · 2025
+        **Records after cleaning** · {record_count:,}
+        **Prediction level** · Township-level median
+        **Selected model** · {recommended} (by cross-validation)
         """)
-        st.markdown('<div class="mh-divider"></div>', unsafe_allow_html=True)
-        st.markdown("**Main model inputs**")
-        st.write("State · Tenure · Property type · Median PSF · Transactions. "
-                 "Area and township are lookup controls only.")
-        st.markdown('<div class="mh-divider"></div>', unsafe_allow_html=True)
+        st.markdown("---")
+        st.markdown("**How location is used**")
+        st.write("You may type any area or township, including one that is not in "
+                 "the dataset. The text is used to find suitable reference market "
+                 "values. It is **not** passed to the model — the model receives "
+                 "state, tenure, property type, median PSF and transactions.")
+        st.markdown("---")
         st.markdown("**Main limitation**")
-        st.write("The median price per square foot must already be known. The "
-                 "model is market-assisted: it refines a known market rate rather "
-                 "than discovering prices without market input.")
-        st.markdown('<div class="mh-divider"></div>', unsafe_allow_html=True)
-        st.markdown("**Navigation**")
-        st.write("**Price Estimator** — generate a prediction.  \n"
-                 "**EDA & Market Insights** — explore market patterns.  \n"
-                 "**Model Report** — examine model evidence.")
-        st.markdown('<div class="mh-divider"></div>', unsafe_allow_html=True)
+        st.write("The median price per square foot must be reasonable for the "
+                 "location. The model refines a known market rate rather than "
+                 "discovering prices without market input.")
+        st.markdown("---")
         st.caption("Academic prototype for BMDS2003 coursework. Built on a static "
-                   "2025 dataset, not live market data. Estimates are "
-                   "township-level medians, not valuations of individual "
-                   "properties, and must not be used for real financial decisions.")
+                   "2025 dataset, not live market data. Estimates are township-level "
+                   "medians, not valuations of individual properties, and must not "
+                   "be used for real financial decisions.")
 
 
 def main() -> None:
@@ -1242,21 +930,19 @@ def main() -> None:
     recommended = results.iloc[0]["Model"]
     render_sidebar(recommended, len(data))
     render_hero()
-    render_model_summary(results, recommended)
 
-    estimator, eda, report = st.tabs(
-        ["Price Estimator", "EDA & Market Insights", "Model Report"])
-    with estimator:
-        tab_estimator(data, results)
-    with eda:
-        tab_eda()
-    with report:
-        tab_model_report(results)
+    prediction_tab, insights_tab, report_tab = st.tabs(
+        ["Price Prediction", "EDA & Market Insights", "Model Report"])
+    with prediction_tab:
+        page_prediction(data, results)
+    with insights_tab:
+        page_insights(data)
+    with report_tab:
+        page_model_report(results)
 
 
 main()
 
 st.markdown('<div class="mh-footer">BMDS2003 Data Science Group Assignment | '
-            'Academic Prototype | Malaysia Housing Prices 2025<br>'
-            'Not a formal property valuation or financial recommendation.</div>',
+            'Academic Prototype | Data source: Malaysia Housing Prices 2025</div>',
             unsafe_allow_html=True)
