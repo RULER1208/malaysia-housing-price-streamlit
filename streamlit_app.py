@@ -310,7 +310,7 @@ def prediction_page(data, results):
         area_seen = area_key in set(encoder.categories_[area_position])
     except Exception:
         area_seen = bool(known_area)
-    st.toast("Prediction completed",icon="✓")
+    st.toast("Prediction completed", icon="✅")
     location = f"{area_text.strip()}, {state}" if area_text.strip() else state
     st.markdown(f'''<div class="mh-result"><div class="label">Estimated township median price</div><div class="price">RM {prediction:,.0f}</div><b>{location}</b> · {ptype} · {tenure}<div class="mh-grid"><div class="mh-item"><span>Median PSF used</span>RM {psf:,}</div><div class="mh-item"><span>Transactions</span>{transactions:,}</div><div class="mh-item"><span>Model</span>{model_name}</div><div class="mh-item"><span>Typical test MAE</span>RM {metrics['MAE_test']/1000:,.1f}K</div><div class="mh-item"><span>Test R²</span>{metrics['R2_test']:.3f}</div><div class="mh-item"><span>Area status</span>{'Seen during model training' if area_seen else 'Unseen Area'}</div></div><p style="color:#667085;margin:16px 0 0">Township-level market estimate based on the 2025 dataset. Not a formal property valuation.</p></div>''',unsafe_allow_html=True)
     if not known_area and area_text.strip():
