@@ -62,6 +62,9 @@ MODEL_FEATURES = ["State", "Area_Key", "Tenure", "Primary_Type", "Median_PSF", "
 SELECTBOX_ACCEPTS_NEW = "accept_new_options" in inspect.signature(st.selectbox).parameters
 NO_AREA = "— No specific area —"
 
+# Set to False for a flat navy top bar with no photograph behind it.
+USE_BANNER_IMAGE = True
+
 st.markdown(r"""
 <style>
 :root {
@@ -86,48 +89,50 @@ st.markdown(r"""
 html,body,[class*="css"] { font-family:Inter,"Segoe UI",Roboto,Arial,sans-serif }
 h1,h2,h3,h4 { color:var(--navy) }
 
-/* ---------- Banner ---------- */
-.mh-banner {
-    position:relative; overflow:hidden;
-    border-radius:var(--radius) var(--radius) 0 0;
-    padding:20px 24px; min-height:74px;
-    display:flex; align-items:center; justify-content:space-between;
+/* ---------- Top bar: brand + nav pills + meta, all on ONE row ----------
+   Streamlit renders the tab bar as its own element, so the tab bar IS the
+   banner here. The brand text (left) and data label (right) are injected as
+   ::before / ::after pseudo-elements on the tab list, which is what puts the
+   nav pills inside the banner rather than below it. The background image is
+   applied separately in inject_topbar_background() because it depends on a
+   file read at runtime. */
+.mh-topnav + div [data-baseweb="tab-list"] {
+    display:flex; align-items:center; gap:6px;
+    height:68px; padding:0 22px;
+    border-radius:var(--radius);
+    background-color:var(--navy);
     background-size:cover; background-position:center;
-    border:1px solid var(--border); border-bottom:none;
+    box-shadow:var(--shadow); border:none;
+    margin-bottom:22px; overflow:hidden;
 }
-.mh-banner .brand {
-    position:relative; z-index:1;
-    display:flex; align-items:center; gap:11px;
-    font-size:1.16rem; font-weight:750; color:#FFFFFF;
-    text-shadow:0 1px 3px rgba(9,17,31,.55);
+.mh-topnav + div [data-baseweb="tab-list"]::before {
+    content:"⌂\00a0\00a0Housing Price Estimator";
+    font-size:1.06rem; font-weight:750; color:#FFFFFF;
+    white-space:nowrap; margin-right:20px;
+    text-shadow:0 1px 3px rgba(9,17,31,.5);
 }
-.mh-banner .brand .glyph {
-    width:30px; height:30px; border-radius:9px;
-    background:rgba(255,255,255,.16); border:1px solid rgba(255,255,255,.28);
-    display:flex; align-items:center; justify-content:center; font-size:.98rem;
+.mh-topnav + div [data-baseweb="tab-list"]::after {
+    content:"BMDS2003 · 2025 DATA";
+    margin-left:auto; white-space:nowrap;
+    font-family:var(--mono); font-size:.72rem; letter-spacing:.12em;
+    color:#AFC3DF; text-shadow:0 1px 3px rgba(9,17,31,.55);
 }
-.mh-banner .meta {
-    position:relative; z-index:1;
-    font-family:var(--mono); font-size:.74rem; letter-spacing:.12em;
-    color:#DCE6F5; text-shadow:0 1px 3px rgba(9,17,31,.6);
+.mh-topnav + div [data-baseweb="tab"] {
+    height:36px; padding:0 16px; border-radius:9px;
+    color:#B9C8DF; font-weight:650; font-size:.92rem;
+    background:transparent; border:none;
 }
-
-/* Tab strip styled to read as one unit with the banner above it */
-.stTabs [data-baseweb="tab-list"] {
-    gap:6px; background:var(--navy); padding:0 16px 0 16px;
-    border-radius:0 0 var(--radius) var(--radius);
-    border:1px solid var(--border); border-top:none;
-    margin-bottom:20px;
-}
-.stTabs [data-baseweb="tab"] {
-    height:46px; color:#AFC0DA; font-weight:650; font-size:.92rem;
-    border-radius:9px; padding:0 15px;
-}
-.stTabs [aria-selected="true"] {
-    color:var(--navy)!important; background:#FFFFFF;
+.mh-topnav + div [data-baseweb="tab"]:hover { color:#FFFFFF; background:rgba(255,255,255,.10); }
+.mh-topnav + div [aria-selected="true"] {
+    color:var(--navy)!important; background:#FFFFFF!important;
     border-bottom:none!important;
 }
-.stTabs [data-baseweb="tab-highlight"], .stTabs [data-baseweb="tab-border"] { display:none; }
+/* Inner tabs (Insights page) keep a plain underline style */
+.stTabs [data-baseweb="tab-list"]{gap:8px;border-bottom:1px solid var(--border);}
+.stTabs [data-baseweb="tab"]{height:44px;color:var(--muted);font-weight:650;}
+.stTabs [aria-selected="true"]{color:var(--blue)!important;}
+.mh-topnav + div [data-baseweb="tab-highlight"],
+.mh-topnav + div [data-baseweb="tab-border"] { display:none!important; }
 
 /* ---------- Left input console ---------- */
 .mh-panel-title {
@@ -201,11 +206,16 @@ div[data-testid="stMetric"] { background:white; border:1px solid var(--border); 
 @keyframes fadeUp { from{opacity:0;transform:translateY(8px);} to{opacity:1;transform:translateY(0);} }
 @media(max-width:820px){
     .block-container{padding-left:12px;padding-right:12px;}
-    .mh-banner{padding:16px 16px;}
-    .mh-banner .brand{font-size:1rem;}
-    .mh-banner .meta{display:none;}
+    /* Hide the data label first, then the brand, so the nav pills always fit */
+    .mh-topnav + div [data-baseweb="tab-list"]::after{display:none;}
+    .mh-topnav + div [data-baseweb="tab-list"]{height:60px;padding:0 14px;}
+    .mh-topnav + div [data-baseweb="tab-list"]::before{font-size:.92rem;margin-right:12px;}
+    .mh-topnav + div [data-baseweb="tab"]{padding:0 11px;font-size:.86rem;}
     .mh-result .price{font-size:2.05rem;}
     .mh-stats{grid-template-columns:1fr 1fr;}
+}
+@media(max-width:560px){
+    .mh-topnav + div [data-baseweb="tab-list"]::before{display:none;}
 }
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important;}}
 </style>
@@ -297,23 +307,23 @@ def derive_reference(data, state, area_clean, ptype, tenure):
     raise ValueError("No reference data available")
 
 
-def render_banner():
-    """Top banner. Uses assets/malaysia_housing_banner.png behind a LIGHT scrim
-    so the photo stays visible; falls back to a navy gradient if absent."""
-    encoded = encode_image(str(BANNER_PATH))
+def inject_topbar_background():
+    """Apply the banner photo to the tab bar (which doubles as the banner).
+
+    Set USE_BANNER_IMAGE = False for the flat navy bar with no photo. When the
+    photo is used, the scrim is kept strong enough on the left that the brand
+    text stays legible, and lighter toward the right so the image shows through.
+    """
+    encoded = encode_image(str(BANNER_PATH)) if USE_BANNER_IMAGE else None
     if encoded:
-        # Lighter than before: darker only on the left where the brand text
-        # sits, fading to nearly clear on the right so the image shows through.
-        scrim = ("linear-gradient(100deg, rgba(20,32,54,.66) 0%, "
-                 "rgba(20,32,54,.34) 46%, rgba(20,32,54,.16) 100%)")
-        layer = f"{scrim}, url('data:image/png;base64,{encoded}')"
+        scrim = ("linear-gradient(100deg, rgba(17,28,48,.92) 0%, "
+                 "rgba(17,28,48,.74) 42%, rgba(17,28,48,.55) 100%)")
+        background = f"{scrim}, url('data:image/png;base64,{encoded}')"
     else:
-        layer = "linear-gradient(100deg,#183153 0%,#264A77 100%)"
+        background = "linear-gradient(100deg,#152742 0%,#1F3B63 100%)"
     st.markdown(
-        f'<div class="mh-banner" style="background-image:{layer};">'
-        f'<div class="brand"><span class="glyph">⌂</span>Housing Price Estimator</div>'
-        f'<div class="meta">BMDS2003 · 2025 DATA</div>'
-        f'</div>',
+        "<style>.mh-topnav + div [data-baseweb=\"tab-list\"]{background-image:"
+        + background + ";}</style>",
         unsafe_allow_html=True)
 
 
@@ -573,7 +583,8 @@ def main():
     if missing:
         st.error("Missing required files: " + ", ".join(missing)); st.stop()
     data = load_data(); results = load_results()
-    render_banner()
+    inject_topbar_background()
+    st.markdown('<div class="mh-topnav"></div>', unsafe_allow_html=True)
     pred, insights, report = st.tabs(["Prediction", "Insights", "Model Report"])
     with pred: prediction_page(data, results)
     with insights: insights_page(data)
