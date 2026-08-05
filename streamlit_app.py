@@ -12,13 +12,20 @@ The same area_preprocessing module is used by the notebook at training time and
 by this app at prediction time, so cleaning can never drift. Township is
 excluded because it is near-unique per row.
 
-DESIGN NOTE ON REFERENCE VALUES (v2)
--------------------------------------
+LAYOUT (v3) - split console
+---------------------------
+Prediction page is a two-column console: all inputs on the left, the live
+result panel on the right. The banner uses assets/malaysia_housing_banner.png
+behind a LIGHT gradient scrim so the photo stays visible while the brand text
+keeps enough contrast.
+
+REFERENCE VALUES
+----------------
 Median PSF and Transactions are prediction inputs the user sets deliberately.
-They therefore use a FIXED, state-independent default (the dataset-wide
-median) and a STABLE widget key, so choosing a different State / Area /
-Property type / Tenure never silently rewrites a value the user already set.
-A typical-value caption is shown separately, for information only.
+They use a FIXED, state-independent default (the dataset-wide median) and a
+STABLE widget key, so changing State / Area / Type / Tenure never silently
+rewrites a value the user already set. The "typical" figure for the current
+selection is shown beside the label, for information only.
 """
 from __future__ import annotations
 from pathlib import Path
@@ -50,7 +57,7 @@ BANNER_PATH = ASSETS_DIR / "malaysia_housing_banner.png"
 MODEL_FEATURES = ["State", "Area_Key", "Tenure", "Primary_Type", "Median_PSF", "Transactions"]
 
 # Streamlit >= 1.45 lets a selectbox accept a typed value outside its option
-# list. requirements.txt pins streamlit>=1.45, but this keeps the app from
+# list. requirements.txt pins streamlit>=1.45; this check keeps the app from
 # crashing outright on an older local install.
 SELECTBOX_ACCEPTS_NEW = "accept_new_options" in inspect.signature(st.selectbox).parameters
 NO_AREA = "— No specific area —"
@@ -58,6 +65,7 @@ NO_AREA = "— No specific area —"
 st.markdown(r"""
 <style>
 :root {
+    /* palette carried over unchanged from the previous version */
     --bg:#F6F8FB;
     --card:#FFFFFF;
     --text:#172033;
@@ -71,75 +79,133 @@ st.markdown(r"""
     --soft:#EEF4FF;
     --radius:16px;
     --shadow:0 8px 28px rgba(24,49,83,.07);
+    --mono:ui-monospace,"SF Mono","Cascadia Mono",Menlo,Consolas,monospace;
 }
 .stApp { background:var(--bg); color:var(--text); }
-.block-container { max-width:1160px; padding-top:1.4rem; padding-bottom:2rem; }
+.block-container { max-width:1180px; padding-top:1.1rem; padding-bottom:2rem; }
 html,body,[class*="css"] { font-family:Inter,"Segoe UI",Roboto,Arial,sans-serif }
 h1,h2,h3,h4 { color:var(--navy) }
 
-.mh-header {
-    display:flex; justify-content:space-between; align-items:center;
-    padding:18px 22px; background:white; border:1px solid var(--border);
-    border-radius:var(--radius); box-shadow:var(--shadow); margin-bottom:18px;
-}
-.mh-brand { font-size:1.22rem; font-weight:750; color:var(--navy); }
-.mh-brand small { display:block; font-size:.82rem; color:var(--muted); font-weight:500; margin-top:2px; }
-.mh-chip { display:inline-flex; align-items:center; padding:5px 9px; border-radius:999px; font-size:.82rem; font-weight:650; }
-.mh-chip.local { background:#EAF7F1; color:#116B48; }
-.mh-chip.fallback { background:#FFF6E6; color:#8A5300; }
-
-/* Hero banner - Price Prediction page only */
-.mh-hero {
-    position:relative; border-radius:var(--radius); overflow:hidden;
-    margin-bottom:18px; box-shadow:var(--shadow); border:1px solid var(--border);
+/* ---------- Banner ---------- */
+.mh-banner {
+    position:relative; overflow:hidden;
+    border-radius:var(--radius) var(--radius) 0 0;
+    padding:20px 24px; min-height:74px;
+    display:flex; align-items:center; justify-content:space-between;
     background-size:cover; background-position:center;
-    padding:34px 26px; min-height:118px; display:flex; flex-direction:column;
-    justify-content:center;
+    border:1px solid var(--border); border-bottom:none;
 }
-.mh-hero::before {
-    content:""; position:absolute; inset:0;
-    background:linear-gradient(100deg, rgba(23,32,51,.82) 10%, rgba(23,32,51,.45) 75%);
+.mh-banner .brand {
+    position:relative; z-index:1;
+    display:flex; align-items:center; gap:11px;
+    font-size:1.16rem; font-weight:750; color:#FFFFFF;
+    text-shadow:0 1px 3px rgba(9,17,31,.55);
 }
-.mh-hero .mh-hero-content { position:relative; z-index:1; }
-.mh-hero h2 { color:#FFFFFF; margin:0 0 4px 0; font-size:1.5rem; }
-.mh-hero p { color:#E7ECF6; margin:0; font-size:.92rem; }
+.mh-banner .brand .glyph {
+    width:30px; height:30px; border-radius:9px;
+    background:rgba(255,255,255,.16); border:1px solid rgba(255,255,255,.28);
+    display:flex; align-items:center; justify-content:center; font-size:.98rem;
+}
+.mh-banner .meta {
+    position:relative; z-index:1;
+    font-family:var(--mono); font-size:.74rem; letter-spacing:.12em;
+    color:#DCE6F5; text-shadow:0 1px 3px rgba(9,17,31,.6);
+}
 
-.mh-card { background:white; border:1px solid var(--border); border-radius:var(--radius); padding:22px; box-shadow:var(--shadow); }
+/* Tab strip styled to read as one unit with the banner above it */
+.stTabs [data-baseweb="tab-list"] {
+    gap:6px; background:var(--navy); padding:0 16px 0 16px;
+    border-radius:0 0 var(--radius) var(--radius);
+    border:1px solid var(--border); border-top:none;
+    margin-bottom:20px;
+}
+.stTabs [data-baseweb="tab"] {
+    height:46px; color:#AFC0DA; font-weight:650; font-size:.92rem;
+    border-radius:9px; padding:0 15px;
+}
+.stTabs [aria-selected="true"] {
+    color:var(--navy)!important; background:#FFFFFF;
+    border-bottom:none!important;
+}
+.stTabs [data-baseweb="tab-highlight"], .stTabs [data-baseweb="tab-border"] { display:none; }
+
+/* ---------- Left input console ---------- */
+.mh-panel-title {
+    display:flex; align-items:center; gap:9px;
+    font-size:1.02rem; font-weight:700; color:var(--navy); margin:2px 0 14px 0;
+}
+.mh-label {
+    display:flex; align-items:baseline; justify-content:space-between;
+    font-family:var(--mono); font-size:.72rem; letter-spacing:.1em;
+    color:var(--muted); margin:2px 0 5px 0; text-transform:uppercase;
+}
+.mh-label .hint { font-family:Inter,sans-serif; letter-spacing:0; text-transform:none; font-size:.78rem; }
+.mh-rule { border:none; border-top:1px solid var(--border); margin:16px 0 14px 0; }
+
+/* ---------- Right result panel ---------- */
 .mh-result {
-    background:linear-gradient(135deg,#EAF7F1,#EEF4FF); border:1px solid #BFE5D2;
-    border-radius:18px; padding:28px 26px; animation:fadeUp .24s ease both;
+    background:var(--navy); border-radius:var(--radius);
+    padding:26px 26px 24px; box-shadow:var(--shadow);
+    animation:fadeUp .22s ease both;
 }
-.mh-result .label { font-size:.82rem; color:var(--muted); text-transform:uppercase; letter-spacing:.08em; }
-.mh-result .price { font-size:2.6rem; font-weight:760; color:var(--navy); margin:4px 0 6px; }
-.mh-result .subline { font-size:.98rem; color:var(--text); margin-bottom:14px; }
-.mh-result .basis {
-    background:rgba(255,255,255,.65); border:1px solid rgba(191,229,210,.9);
-    border-radius:12px; padding:12px 14px; font-size:.9rem; color:var(--text); margin-top:6px;
+.mh-result .cap {
+    font-family:var(--mono); font-size:.72rem; letter-spacing:.14em;
+    color:#9FB4D4; text-transform:uppercase;
 }
-.mh-result .disclaimer {
-    display:flex; gap:8px; align-items:flex-start; margin-top:14px;
-    font-size:.82rem; color:var(--muted); line-height:1.45;
+.mh-result .price {
+    font-size:2.7rem; font-weight:770; color:#FFFFFF;
+    margin:8px 0 6px; line-height:1.05; letter-spacing:-.01em;
 }
-.mh-empty { text-align:center; padding:36px 18px; color:var(--muted); }
-.mh-empty .icon { font-size:2rem; margin-bottom:8px; }
+.mh-result .sub { color:#C9D7EC; font-size:.95rem; }
+.mh-result .rule { border-top:1px solid rgba(255,255,255,.16); margin:18px 0 14px; }
+.mh-stats { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; }
+.mh-stats .k {
+    font-family:var(--mono); font-size:.68rem; letter-spacing:.12em;
+    color:#9FB4D4; text-transform:uppercase; margin-bottom:3px;
+}
+.mh-stats .v { font-family:var(--mono); font-size:.96rem; font-weight:700; color:#FFFFFF; }
 
-.stButton>button { min-height:44px; border-radius:11px; font-weight:650; transition:transform .18s ease,box-shadow .18s ease; }
+.mh-derive {
+    background:var(--card); border:1px solid var(--border);
+    border-radius:var(--radius); padding:18px 20px; box-shadow:var(--shadow); margin-top:14px;
+}
+.mh-derive h4 { margin:0 0 12px 0; font-size:.98rem; font-weight:700; color:var(--navy); }
+.mh-drow {
+    display:flex; justify-content:space-between; align-items:baseline; gap:12px;
+    padding:7px 0; border-bottom:1px dashed var(--border); font-size:.9rem;
+}
+.mh-drow:last-child { border-bottom:none; }
+.mh-drow .k { color:var(--muted); }
+.mh-drow .v { font-weight:650; color:var(--text); text-align:right; }
+.mh-drow .v.ok { color:var(--green); }
+.mh-drow .v.warn { color:var(--amber); }
+
+.mh-note {
+    display:flex; gap:9px; align-items:flex-start; margin-top:14px;
+    background:var(--soft); border:1px solid var(--border); border-radius:13px;
+    padding:13px 15px; font-size:.83rem; color:var(--muted); line-height:1.5;
+}
+.mh-empty {
+    background:var(--card); border:1px dashed #CFD8E6; border-radius:var(--radius);
+    padding:52px 24px; text-align:center; color:var(--muted); box-shadow:var(--shadow);
+}
+.mh-empty .icon { font-size:2rem; margin-bottom:10px; opacity:.7; }
+.mh-empty b { color:var(--navy); display:block; margin-bottom:4px; font-size:1rem; }
+
+.stButton>button { min-height:44px; border-radius:11px; font-weight:650; transition:transform .18s ease; }
 .stButton>button:hover { transform:translateY(-1px) }
 .stButton>button[kind="primary"] { background:var(--blue); border-color:var(--blue); }
-.stTabs [data-baseweb="tab-list"] { gap:8px; border-bottom:1px solid var(--border); }
-.stTabs [data-baseweb="tab"] { height:46px; color:var(--muted); font-weight:650; }
-.stTabs [aria-selected="true"] { color:var(--blue)!important; border-bottom:2px solid var(--blue); }
 div[data-testid="stMetric"] { background:white; border:1px solid var(--border); border-radius:13px; padding:13px 15px; }
-
 .mh-fig-caption { font-size:.86rem; color:var(--muted); margin:2px 0 18px 0; line-height:1.4; }
 
 @keyframes fadeUp { from{opacity:0;transform:translateY(8px);} to{opacity:1;transform:translateY(0);} }
-@media(max-width:700px){
+@media(max-width:820px){
     .block-container{padding-left:12px;padding-right:12px;}
-    .mh-header{padding:15px;}
-    .mh-result .price{font-size:2rem;}
-    .mh-hero{padding:22px 18px;min-height:96px;}
-    .mh-hero h2{font-size:1.2rem;}
+    .mh-banner{padding:16px 16px;}
+    .mh-banner .brand{font-size:1rem;}
+    .mh-banner .meta{display:none;}
+    .mh-result .price{font-size:2.05rem;}
+    .mh-stats{grid-template-columns:1fr 1fr;}
 }
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important;}}
 </style>
@@ -175,6 +241,13 @@ def encode_image(path_str: str) -> str | None:
         return None
 
 
+def field_label(text: str, hint: str = "") -> None:
+    """Small uppercase field label, with an optional right-aligned hint."""
+    right = f'<span class="hint">{hint}</span>' if hint else ""
+    st.markdown(f'<div class="mh-label"><span>{text}</span>{right}</div>',
+                unsafe_allow_html=True)
+
+
 # ---------------------------------------------------------------------------
 # AREA RESOLUTION AND REFERENCE LOOKUP
 # ---------------------------------------------------------------------------
@@ -205,15 +278,15 @@ def derive_reference(data, state, area_clean, ptype, tenure):
     if area_clean:
         a = data["Area_Clean"].eq(area_clean)
         candidates += [
-            ("Local area reference", s & a & t & n),
+            ("Local area", s & a & t & n),
             ("Local area + property type", s & a & t),
             ("Local area market", s & a),
         ]
     candidates += [
         (f"{state} property reference", s & t & n),
         (f"{state} property market", s & t),
-        (f"{state} market reference", s),
-        ("National dataset reference", pd.Series(True, index=data.index)),
+        (f"{state} market", s),
+        ("National dataset", pd.Series(True, index=data.index)),
     ]
     for label, mask in candidates:
         pool = data[mask]
@@ -224,156 +297,170 @@ def derive_reference(data, state, area_clean, ptype, tenure):
     raise ValueError("No reference data available")
 
 
-def header():
-    st.markdown('<div class="mh-header"><div class="mh-brand">🏠 Malaysia Housing '
-                'Price Estimator<small>2025 market-assisted prediction</small></div>'
-                '<span class="mh-chip local">Academic prototype</span></div>',
-                unsafe_allow_html=True)
-
-
-def render_hero():
-    """Banner background for the Price Prediction page. Falls back to a plain
-    gradient if assets/malaysia_housing_banner.png is not present."""
+def render_banner():
+    """Top banner. Uses assets/malaysia_housing_banner.png behind a LIGHT scrim
+    so the photo stays visible; falls back to a navy gradient if absent."""
     encoded = encode_image(str(BANNER_PATH))
-    layer = (f"linear-gradient(100deg, rgba(23,32,51,.82) 10%, rgba(23,32,51,.45) 75%), "
-             f"url('data:image/png;base64,{encoded}')" if encoded
-             else "linear-gradient(120deg,#183153 0%,#2F5C8A 100%)")
+    if encoded:
+        # Lighter than before: darker only on the left where the brand text
+        # sits, fading to nearly clear on the right so the image shows through.
+        scrim = ("linear-gradient(100deg, rgba(20,32,54,.66) 0%, "
+                 "rgba(20,32,54,.34) 46%, rgba(20,32,54,.16) 100%)")
+        layer = f"{scrim}, url('data:image/png;base64,{encoded}')"
+    else:
+        layer = "linear-gradient(100deg,#183153 0%,#264A77 100%)"
     st.markdown(
-        f'<div class="mh-hero" style="background-image:{layer};">'
-        f'<div class="mh-hero-content"><h2>Estimate a township median price</h2>'
-        f'<p>Enter the property and market information below to get an instant estimate.</p>'
-        f'</div></div>',
+        f'<div class="mh-banner" style="background-image:{layer};">'
+        f'<div class="brand"><span class="glyph">⌂</span>Housing Price Estimator</div>'
+        f'<div class="meta">BMDS2003 · 2025 DATA</div>'
+        f'</div>',
         unsafe_allow_html=True)
 
 
 # ---------------------------------------------------------------------------
-# PAGE 1 - PRICE PREDICTION
+# PAGE 1 - PRICE PREDICTION (split console)
 # ---------------------------------------------------------------------------
 def prediction_page(data, results):
-    render_hero()
-    st.caption("Values you enter stay exactly as you set them until you press "
-              "Predict Price or Reset — changing a dropdown never silently "
-              "changes another field.")
     recommended = results.iloc[0]["Model"]
-
-    # Fixed, state-independent defaults (computed once from the whole dataset).
+    # Fixed, state-independent defaults so no selection ever rewrites them.
     default_psf = int(round(data["Median_PSF"].median()))
     default_txn = int(round(data["Transactions"].median()))
     psf_min, psf_max = int(data["Median_PSF"].min()), int(data["Median_PSF"].max())
 
-    with st.container(border=True):
-        left, right = st.columns(2)
-        with left:
-            state = st.selectbox("State", sorted(data["State"].unique()), key="pred_state")
+    left, right = st.columns([1, 1], gap="large")
 
+    # ---------------- LEFT: inputs ----------------
+    with left:
+        with st.container(border=True):
+            st.markdown('<div class="mh-panel-title">⚙ Inputs</div>', unsafe_allow_html=True)
+
+            field_label("State")
+            state = st.selectbox("State", sorted(data["State"].unique()),
+                                 key="pred_state", label_visibility="collapsed")
+
+            field_label("Area")
             area_options = [NO_AREA] + known_areas_for_state(data, state)
             if SELECTBOX_ACCEPTS_NEW:
                 area_choice = st.selectbox(
-                    "Area", area_options, key="pred_area", accept_new_options=True,
-                    help="Pick a known area, or type one that is not in the "
-                         "dropdown. The model is trained on Area, not Township; "
-                         "an unrecognised area falls back safely to broader "
-                         "market values.")
+                    "Area", area_options, key="pred_area", label_visibility="collapsed",
+                    accept_new_options=True,
+                    help="Pick a known area, or type one that is not listed. The "
+                         "model is trained on Area, not Township; an unrecognised "
+                         "area falls back safely to broader market values.")
             else:
                 OTHER = "Other (type below)"
-                picked = st.selectbox("Area", area_options + [OTHER], key="pred_area_select")
+                picked = st.selectbox("Area", area_options + [OTHER],
+                                      key="pred_area_select", label_visibility="collapsed")
                 area_choice = (st.text_input("Type the area", key="pred_area_text")
-                              if picked == OTHER else picked)
+                               if picked == OTHER else picked)
             area_text = "" if area_choice == NO_AREA else str(area_choice or "")
 
-            ptype = st.selectbox("Property type", sorted(data["Primary_Type"].unique()), key="pred_type")
-            tenure = st.selectbox("Tenure", sorted(data["Tenure"].unique()), key="pred_tenure")
+            c1, c2 = st.columns(2)
+            with c1:
+                field_label("Type")
+                ptype = st.selectbox("Property type", sorted(data["Primary_Type"].unique()),
+                                     key="pred_type", label_visibility="collapsed")
+            with c2:
+                field_label("Tenure")
+                tenure = st.selectbox("Tenure", sorted(data["Tenure"].unique()),
+                                      key="pred_tenure", label_visibility="collapsed")
 
-        known_area, _ = resolve_known_area(data, state, area_text)
-        reference = derive_reference(data, state, known_area, ptype, tenure)
+            known_area, _ = resolve_known_area(data, state, area_text)
+            reference = derive_reference(data, state, known_area, ptype, tenure)
 
-        with right:
-            psf = st.number_input(
-                "Median price per square foot (RM)", min_value=1, step=10,
-                value=default_psf, key="pred_psf",
-                help=f"Typical value for this selection: RM {reference['psf']:,} "
-                     f"({reference['label']}, n={reference['n']}). This is a "
-                     "suggestion only — the field keeps whatever you type.")
-            transactions = st.number_input(
-                "Transactions", min_value=0, step=1,
-                value=default_txn, key="pred_txn",
-                help=f"Typical value for this selection: {reference['transactions']:,} "
-                     f"({reference['label']}, n={reference['n']}).")
+            st.markdown('<hr class="mh-rule">', unsafe_allow_html=True)
 
+            field_label("Median PSF (RM)", f"typical {reference['psf']:,}")
+            psf = st.number_input("Median price per square foot (RM)", min_value=1, step=10,
+                                  value=default_psf, key="pred_psf",
+                                  label_visibility="collapsed")
+
+            field_label("Transactions", f"typical {reference['transactions']:,}")
+            transactions = st.number_input("Transactions", min_value=0, step=1,
+                                           value=default_txn, key="pred_txn",
+                                           label_visibility="collapsed")
+
+            field_label("Model")
             labels, mapping = [], {}
             for _, row in results.iterrows():
                 suffix = " — Recommended" if row["Model"] == recommended else ""
                 labels.append(row["Model"] + suffix)
                 mapping[row["Model"] + suffix] = row["Model"]
-            picked_model = st.selectbox("Model", labels, index=0, key="pred_model")
+            picked_model = st.selectbox("Model", labels, index=0, key="pred_model",
+                                        label_visibility="collapsed")
             model_name = mapping[picked_model]
 
-            st.caption(f"Typical for this selection: RM {reference['psf']:,}/sq ft, "
-                      f"{reference['transactions']:,} transactions "
-                      f"({reference['label']}, {reference['n']} record(s)).")
+            if psf < psf_min or psf > psf_max:
+                st.warning(
+                    f"RM {psf:,} is outside the observed range (RM {psf_min:,}–"
+                    f"RM {psf_max:,}). Tree-based models do not extrapolate beyond "
+                    f"values seen in training, so the estimate will stop responding "
+                    f"past a point — treat an extreme input as unreliable.")
 
-        if psf < psf_min or psf > psf_max:
-            st.warning(
-                f"RM {psf:,} is far outside the observed range for this dataset "
-                f"(RM {psf_min:,}–RM {psf_max:,}). Tree-based models such as this "
-                f"one do not extrapolate beyond values seen in training — the "
-                f"prediction will not keep increasing past a certain point, and "
-                f"an extreme input like this should be treated as unreliable.")
+            b1, b2 = st.columns([2, 1])
+            predict = b1.button("Predict Price", type="primary", use_container_width=True)
+            b2.button("Reset", use_container_width=True,
+                      on_click=reset_prediction_form, key="reset_prediction")
 
-        c1, c2 = st.columns([4, 1])
-        predict = c1.button("Predict Price", type="primary", use_container_width=True)
-        c2.button("Reset", use_container_width=True, on_click=reset_prediction_form, key="reset_prediction")
+    # ---------------- RIGHT: live result ----------------
+    with right:
+        if not predict:
+            st.markdown(
+                '<div class="mh-empty"><div class="icon">⌂</div>'
+                '<b>Your estimate will appear here.</b>'
+                'Complete the inputs on the left, then select Predict Price.</div>',
+                unsafe_allow_html=True)
+            return
 
-    if not predict:
-        st.markdown('<div class="mh-card mh-empty"><div class="icon">⌂</div>'
-                    '<b>Your estimated price will appear here.</b><br>'
-                    'Complete the form and select Predict Price.</div>',
-                    unsafe_allow_html=True)
-        return
+        model = load_model(model_name)
+        area_key = create_area_key(state, area_text)
+        features = pd.DataFrame([{"State": state, "Area_Key": area_key, "Tenure": tenure,
+                                  "Primary_Type": ptype, "Median_PSF": psf,
+                                  "Transactions": transactions}])[MODEL_FEATURES]
+        with st.spinner("Calculating estimate..."):
+            prediction = float(model.predict(features)[0])
+        metrics = results[results["Model"] == model_name].iloc[0]
+        try:
+            encoder = model.named_steps["preprocess"].named_transformers_["cat"].named_steps["encoder"]
+            area_position = ["State", "Area_Key", "Tenure", "Primary_Type"].index("Area_Key")
+            area_seen = area_key in set(encoder.categories_[area_position])
+        except Exception:
+            area_seen = bool(known_area)
 
-    model = load_model(model_name)
-    area_key = create_area_key(state, area_text)
-    features = pd.DataFrame([{"State": state, "Area_Key": area_key, "Tenure": tenure,
-                              "Primary_Type": ptype, "Median_PSF": psf,
-                              "Transactions": transactions}])[MODEL_FEATURES]
-    with st.spinner("Calculating estimate..."):
-        prediction = float(model.predict(features)[0])
-    metrics = results[results["Model"] == model_name].iloc[0]
-    try:
-        encoder = model.named_steps["preprocess"].named_transformers_["cat"].named_steps["encoder"]
-        area_position = ["State", "Area_Key", "Tenure", "Primary_Type"].index("Area_Key")
-        area_seen = area_key in set(encoder.categories_[area_position])
-    except Exception:
-        area_seen = bool(known_area)
-    st.toast("Prediction completed", icon="✅")
+        location = f"{area_text.strip()}, {state}" if area_text.strip() else state
+        st.markdown(f'''
+        <div class="mh-result">
+            <div class="cap">Estimated median price</div>
+            <div class="price">RM {prediction:,.0f}</div>
+            <div class="sub">{location} · {ptype} · {tenure}</div>
+            <div class="rule"></div>
+            <div class="mh-stats">
+                <div><div class="k">Model</div><div class="v">{model_name}</div></div>
+                <div><div class="k">Test MAE</div><div class="v">RM {metrics['MAE_test']/1000:,.1f}K</div></div>
+                <div><div class="k">Test R²</div><div class="v">{metrics['R2_test']:.3f}</div></div>
+            </div>
+        </div>''', unsafe_allow_html=True)
 
-    location = f"{area_text.strip()}, {state}" if area_text.strip() else state
-    st.markdown(f'''
-    <div class="mh-result">
-        <div class="label">Estimated value</div>
-        <div class="price">RM {prediction:,.0f}</div>
-        <div class="subline"><b>{location}</b> · {ptype} · {tenure}</div>
-        <div class="basis">Based on a median of <b>RM {psf:,}/sq ft</b>
-            ({reference['label']}, {reference['n']} record(s)),
-            {transactions:,} transactions, using the <b>{model_name}</b> model.</div>
-        <div class="disclaimer">ⓘ&nbsp;An indicative estimate from 2025 township-level
-            data — a market guide, not a formal valuation. Actual price depends on
-            property-specific factors not captured here (size, condition, floor,
-            view). For a precise figure, consult a registered valuer or real estate
-            agent.</div>
-    </div>''', unsafe_allow_html=True)
+        seen_cls = "ok" if area_seen else "warn"
+        seen_txt = "Yes" if area_seen else "No — broader market used"
+        st.markdown(f'''
+        <div class="mh-derive">
+            <h4>How this was derived</h4>
+            <div class="mh-drow"><span class="k">Reference basis</span>
+                <span class="v">{reference['label']} (n={reference['n']})</span></div>
+            <div class="mh-drow"><span class="k">Median PSF used</span>
+                <span class="v">RM {psf:,}</span></div>
+            <div class="mh-drow"><span class="k">Transactions used</span>
+                <span class="v">{transactions:,}</span></div>
+            <div class="mh-drow"><span class="k">Area in training set</span>
+                <span class="v {seen_cls}">{seen_txt}</span></div>
+        </div>''', unsafe_allow_html=True)
 
-    with st.expander("Technical details"):
-        d1, d2, d3 = st.columns(3)
-        d1.metric("Model", model_name)
-        d2.metric("Typical test MAE", f"RM {metrics['MAE_test']/1000:,.1f}K")
-        d3.metric("Test R²", f"{metrics['R2_test']:.3f}")
-        st.caption(f"Area status: {'seen during model training' if area_seen else 'not seen during training — the model falls back on State, Property type and Tenure'}.")
-
-    if not known_area and area_text.strip():
-        st.info(f"This area was not represented in the dataset. Broader {state} "
-               f"market values supplied the typical-PSF suggestion shown above; "
-               f"your Predict Price inputs were still used exactly as entered.")
+        st.markdown(
+            '<div class="mh-note">ⓘ&nbsp;<span>Indicative only — township-level '
+            'medians from a static 2025 snapshot, not a formal valuation. Actual '
+            'price depends on property-specific factors not captured here.</span></div>',
+            unsafe_allow_html=True)
 
 
 FIGURE_GROUPS = {
@@ -403,6 +490,7 @@ FIGURE_GROUPS = {
         ("fig24_top_transactions.png", "The most actively traded townships in 2025."),
     ],
 }
+
 
 # ---------------------------------------------------------------------------
 # PAGE 2 - MARKET INSIGHTS
@@ -484,8 +572,9 @@ def main():
     missing = [p.name for p in [DATA_PATH, RESULTS_PATH] if not p.exists()]
     if missing:
         st.error("Missing required files: " + ", ".join(missing)); st.stop()
-    data = load_data(); results = load_results(); header()
-    pred, insights, report = st.tabs(["Price Prediction", "Market Insights", "Model Report"])
+    data = load_data(); results = load_results()
+    render_banner()
+    pred, insights, report = st.tabs(["Prediction", "Insights", "Model Report"])
     with pred: prediction_page(data, results)
     with insights: insights_page(data)
     with report: model_report_page(results)
