@@ -85,54 +85,58 @@ st.markdown(r"""
     --mono:ui-monospace,"SF Mono","Cascadia Mono",Menlo,Consolas,monospace;
 }
 .stApp { background:var(--bg); color:var(--text); }
-.block-container { max-width:1180px; padding-top:1.1rem; padding-bottom:2rem; }
+.block-container { max-width:1180px; padding-top:82px; padding-bottom:2rem; }
 html,body,[class*="css"] { font-family:Inter,"Segoe UI",Roboto,Arial,sans-serif }
 h1,h2,h3,h4 { color:var(--navy) }
 
-/* ---------- Top bar: brand + nav pills + meta, all on ONE row ----------
-   Streamlit renders the tab bar as its own element, so the tab bar IS the
-   banner here. The brand text (left) and data label (right) are injected as
-   ::before / ::after pseudo-elements on the tab list, which is what puts the
-   nav pills inside the banner rather than below it. The background image is
-   applied separately in inject_topbar_background() because it depends on a
-   file read at runtime. */
-.mh-topnav + div [data-baseweb="tab-list"] {
+/* ---------- Top bar: brand + nav pills, pinned to the very top ----------
+   The tab list IS the banner. It is fixed at top:0 so it sits on the same
+   row as Streamlit's Share / star / GitHub toolbar icons, whose own header
+   is made transparent below so this dark bar shows through behind them.
+   Brand text is injected as a ::before pseudo-element on the tab list.
+   The right-hand "BMDS2003 - 2025 DATA" label is deliberately NOT rendered
+   here: that space is occupied by Streamlit's toolbar and the two would
+   overlap. */
+.stTabs [data-baseweb="tab-list"] {
+    position:fixed; top:0; left:0; right:0;
+    height:58px; z-index:999989;
     display:flex; align-items:center; gap:6px;
-    height:68px; padding:0 22px;
-    border-radius:var(--radius);
-    background-color:var(--navy);
+    padding:0 22px;
+    background-color:#152742;
     background-size:cover; background-position:center;
-    box-shadow:var(--shadow); border:none;
-    margin-bottom:22px; overflow:hidden;
+    border:none; border-radius:0;
+    box-shadow:0 2px 14px rgba(9,17,31,.20);
 }
-.mh-topnav + div [data-baseweb="tab-list"]::before {
-    content:"⌂\00a0\00a0Housing Price Estimator";
-    font-size:1.06rem; font-weight:750; color:#FFFFFF;
+.stTabs [data-baseweb="tab-list"]::before {
+    content:"\2302\00a0\00a0Housing Price Estimator";
+    font-size:1.02rem; font-weight:750; color:#FFFFFF;
     white-space:nowrap; margin-right:20px;
-    text-shadow:0 1px 3px rgba(9,17,31,.5);
+    text-shadow:0 1px 3px rgba(9,17,31,.55);
 }
-.mh-topnav + div [data-baseweb="tab-list"]::after {
-    content:"BMDS2003 · 2025 DATA";
-    margin-left:auto; white-space:nowrap;
-    font-family:var(--mono); font-size:.72rem; letter-spacing:.12em;
-    color:#AFC3DF; text-shadow:0 1px 3px rgba(9,17,31,.55);
-}
-.mh-topnav + div [data-baseweb="tab"] {
-    height:36px; padding:0 16px; border-radius:9px;
-    color:#B9C8DF; font-weight:650; font-size:.92rem;
+.stTabs [data-baseweb="tab"] {
+    height:34px; padding:0 15px; border-radius:9px;
+    color:#B9C8DF; font-weight:650; font-size:.9rem;
     background:transparent; border:none;
 }
-.mh-topnav + div [data-baseweb="tab"]:hover { color:#FFFFFF; background:rgba(255,255,255,.10); }
-.mh-topnav + div [aria-selected="true"] {
-    color:var(--navy)!important; background:#FFFFFF!important;
+.stTabs [data-baseweb="tab"]:hover { color:#FFFFFF; background:rgba(255,255,255,.10); }
+.stTabs [aria-selected="true"] {
+    color:#152742!important; background:#FFFFFF!important;
     border-bottom:none!important;
 }
-/* Inner tabs (Insights page) keep a plain underline style */
-.stTabs [data-baseweb="tab-list"]{gap:8px;border-bottom:1px solid var(--border);}
-.stTabs [data-baseweb="tab"]{height:44px;color:var(--muted);font-weight:650;}
-.stTabs [aria-selected="true"]{color:var(--blue)!important;}
-.mh-topnav + div [data-baseweb="tab-highlight"],
-.mh-topnav + div [data-baseweb="tab-border"] { display:none!important; }
+.stTabs [data-baseweb="tab-highlight"],
+.stTabs [data-baseweb="tab-border"] { display:none!important; }
+
+/* Let the dark bar show through Streamlit's own header, and lighten its
+   icons so Share / star / GitHub stay visible against the navy. */
+header[data-testid="stHeader"] { background:transparent!important; height:58px; }
+[data-testid="stToolbar"] { color:#E8EEF8!important; }
+[data-testid="stToolbar"] svg { fill:#E8EEF8!important; color:#E8EEF8!important; }
+[data-testid="stToolbar"] button, [data-testid="stToolbar"] a,
+[data-testid="stToolbar"] span, [data-testid="stToolbar"] p { color:#E8EEF8!important; }
+
+/* Segmented control used on the Insights page instead of a second st.tabs,
+   so the rules above can target the top navigation unambiguously. */
+div[role="radiogroup"] { gap:8px; }
 
 /* ---------- Left input console ---------- */
 .mh-panel-title {
@@ -205,17 +209,17 @@ div[data-testid="stMetric"] { background:white; border:1px solid var(--border); 
 
 @keyframes fadeUp { from{opacity:0;transform:translateY(8px);} to{opacity:1;transform:translateY(0);} }
 @media(max-width:820px){
-    .block-container{padding-left:12px;padding-right:12px;}
-    /* Hide the data label first, then the brand, so the nav pills always fit */
-    .mh-topnav + div [data-baseweb="tab-list"]::after{display:none;}
-    .mh-topnav + div [data-baseweb="tab-list"]{height:60px;padding:0 14px;}
-    .mh-topnav + div [data-baseweb="tab-list"]::before{font-size:.92rem;margin-right:12px;}
-    .mh-topnav + div [data-baseweb="tab"]{padding:0 11px;font-size:.86rem;}
+    .block-container{padding-left:12px;padding-right:12px;padding-top:76px;}
+    .stTabs [data-baseweb="tab-list"]{height:54px;padding:0 12px;}
+    .stTabs [data-baseweb="tab-list"]::before{font-size:.9rem;margin-right:10px;}
+    .stTabs [data-baseweb="tab"]{padding:0 10px;font-size:.84rem;}
+    header[data-testid="stHeader"]{height:54px;}
     .mh-result .price{font-size:2.05rem;}
     .mh-stats{grid-template-columns:1fr 1fr;}
 }
 @media(max-width:560px){
-    .mh-topnav + div [data-baseweb="tab-list"]::before{display:none;}
+    /* Drop the brand first so the three nav pills always remain reachable */
+    .stTabs [data-baseweb="tab-list"]::before{display:none;}
 }
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important;}}
 </style>
@@ -322,7 +326,7 @@ def inject_topbar_background():
     else:
         background = "linear-gradient(100deg,#152742 0%,#1F3B63 100%)"
     st.markdown(
-        "<style>.mh-topnav + div [data-baseweb=\"tab-list\"]{background-image:"
+        "<style>.stTabs [data-baseweb=\"tab-list\"]{background-image:"
         + background + ";}</style>",
         unsafe_allow_html=True)
 
@@ -506,8 +510,11 @@ FIGURE_GROUPS = {
 # PAGE 2 - MARKET INSIGHTS
 # ---------------------------------------------------------------------------
 def insights_page(data):
-    explorer, visual = st.tabs(["Market Explorer", "Visual Insights"])
-    with explorer:
+    # A radio is used rather than a second st.tabs so the fixed top-bar CSS
+    # can target the navigation tabs without also restyling this control.
+    view = st.radio("View", ["Market Explorer", "Visual Insights"],
+                    horizontal=True, label_visibility="collapsed", key="insights_view")
+    if view == "Market Explorer":
         st.markdown("#### Historical 2025 dataset exploration")
         a, b, c, d = st.columns(4)
         state = a.selectbox("State", ["All"] + sorted(data["State"].unique()), key="ex_state")
@@ -531,7 +538,7 @@ def insights_page(data):
                 show = subset[["Township", "Area_Clean", "State", "Primary_Type",
                                "Tenure", "Median_Price", "Median_PSF", "Transactions"]].copy()
                 st.dataframe(show, use_container_width=True, hide_index=True)
-    with visual:
+    else:
         st.caption("Short explanations are included under each chart for presentation use.")
         group = st.selectbox("Insight category", list(FIGURE_GROUPS))
         for filename, caption in FIGURE_GROUPS[group]:
@@ -584,7 +591,6 @@ def main():
         st.error("Missing required files: " + ", ".join(missing)); st.stop()
     data = load_data(); results = load_results()
     inject_topbar_background()
-    st.markdown('<div class="mh-topnav"></div>', unsafe_allow_html=True)
     pred, insights, report = st.tabs(["Prediction", "Insights", "Model Report"])
     with pred: prediction_page(data, results)
     with insights: insights_page(data)
