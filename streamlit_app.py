@@ -86,13 +86,16 @@ html,body,[class*="css"] { font-family:Inter,"Segoe UI",Roboto,Arial,sans-serif 
 h1,h2,h3,h4 { color:var(--navy) }
 
 /* ---------- Top navigation banner ----------
+   IMPORTANT: current Streamlit uses data-testid="stTabs" on the tabs wrapper.
+   Styling .stTabs alone does not reliably match, so the selectors below use
+   div[data-testid="stTabs"] directly.
    The top-level tab list IS the banner: fixed at top:0 and 58px tall so it
    occupies the same strip as Streamlit's Share / star / GitHub icons, whose
    own header is made transparent so this bar shows through behind them.
    padding-right reserves space so the nav can never slide under the toolbar.
    The Insights page uses a radio, not a second st.tabs, so these rules can
    target the navigation unambiguously without fragile scoping. */
-.stTabs [data-baseweb="tab-list"] {
+div[data-testid="stTabs"] [data-baseweb="tab-list"] {
     position:fixed; top:0; left:0; right:0;
     height:58px; z-index:999989;
     display:flex; align-items:center; gap:6px;
@@ -101,26 +104,31 @@ h1,h2,h3,h4 { color:var(--navy) }
     border:none; border-radius:0;
     box-shadow:0 1px 0 rgba(255,255,255,.06);
 }
-.stTabs [data-baseweb="tab-list"]::before {
+div[data-testid="stTabs"] [data-baseweb="tab-list"]::before {
     content:"\2302\00a0\00a0Housing Price Estimator";
     font-size:1.02rem; font-weight:700; color:#FFFFFF;
     white-space:nowrap; margin-right:22px;
 }
-.stTabs [data-baseweb="tab"] {
+div[data-testid="stTabs"] [data-baseweb="tab"] {
     height:34px; padding:0 15px; border-radius:999px;
     color:#B9C8DF; font-weight:600; font-size:.9rem;
     background:transparent; border:none;
 }
-.stTabs [data-baseweb="tab"]:hover { color:#FFFFFF; background:rgba(255,255,255,.09); }
-.stTabs [aria-selected="true"] {
+div[data-testid="stTabs"] [data-baseweb="tab"]:hover { color:#FFFFFF; background:rgba(255,255,255,.09); }
+div[data-testid="stTabs"] [aria-selected="true"] {
     color:var(--navy)!important; background:#FFFFFF!important;
     border-bottom:none!important;
 }
-.stTabs [data-baseweb="tab-highlight"],
-.stTabs [data-baseweb="tab-border"] { display:none!important; }
+div[data-testid="stTabs"] [data-baseweb="tab-highlight"],
+div[data-testid="stTabs"] [data-baseweb="tab-border"] { display:none!important; }
 
 /* Let the banner show through Streamlit's header; keep its icons visible. */
-header[data-testid="stHeader"] { background:transparent!important; height:58px; }
+header[data-testid="stHeader"] {
+    background:transparent!important;
+    height:58px;
+    z-index:999990;
+}
+[data-testid="stToolbar"] { z-index:999991; }
 [data-testid="stToolbar"] { color:#E8EEF8!important; }
 [data-testid="stToolbar"] svg { fill:#E8EEF8!important; color:#E8EEF8!important; }
 [data-testid="stToolbar"] button, [data-testid="stToolbar"] a,
@@ -207,16 +215,16 @@ div[data-testid="stMetric"] {
 
 @media(max-width:820px){
     .block-container{padding-left:12px;padding-right:12px;padding-top:74px;}
-    .stTabs [data-baseweb="tab-list"]{height:54px;padding:0 130px 0 12px;}
-    .stTabs [data-baseweb="tab-list"]::before{font-size:.9rem;margin-right:10px;}
-    .stTabs [data-baseweb="tab"]{padding:0 10px;font-size:.84rem;}
+    div[data-testid="stTabs"] [data-baseweb="tab-list"]{height:54px;padding:0 130px 0 12px;}
+    div[data-testid="stTabs"] [data-baseweb="tab-list"]::before{font-size:.9rem;margin-right:10px;}
+    div[data-testid="stTabs"] [data-baseweb="tab"]{padding:0 10px;font-size:.84rem;}
     header[data-testid="stHeader"]{height:54px;}
     .mh-result .price{font-size:2.05rem;}
     .mh-stats{grid-template-columns:1fr 1fr;}
 }
 @media(max-width:560px){
     /* Drop the brand first so the three nav pills always stay reachable */
-    .stTabs [data-baseweb="tab-list"]::before{display:none;}
+    div[data-testid="stTabs"] [data-baseweb="tab-list"]::before{display:none;}
 }
 @media(prefers-reduced-motion:reduce){
     *,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important;}
