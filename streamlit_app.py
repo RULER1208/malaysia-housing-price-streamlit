@@ -12,24 +12,26 @@ The same area_preprocessing module is used by the notebook at training time and
 by this app at prediction time, so cleaning can never drift. Township is
 excluded because it is near-unique per row.
 
-LAYOUT (v3) - split console
----------------------------
-Prediction page is a two-column console: all inputs on the left, the live
-result panel on the right. The banner uses assets/malaysia_housing_banner.png
-behind a LIGHT gradient scrim so the photo stays visible while the brand text
-keeps enough contrast.
+LAYOUT
+------
+Top navigation: the top-level st.tabs bar is styled as a fixed dark navy
+banner pinned to row 0, so it shares the strip with Streamlit's own toolbar
+icons. There is no second banner or hero section below it.
+
+Prediction page: two columns. Left is the input form, right is the result -
+the dark price card, a compact "Prediction inputs used" card, a collapsed
+"Technical details" expander, and a short disclaimer.
 
 REFERENCE VALUES
 ----------------
 Median PSF and Transactions are prediction inputs the user sets deliberately.
-They use a FIXED, state-independent default (the dataset-wide median) and a
-STABLE widget key, so changing State / Area / Type / Tenure never silently
-rewrites a value the user already set. The "typical" figure for the current
-selection is shown beside the label, for information only.
+They use a FIXED, dataset-wide default and a STABLE widget key, so changing
+State / Area / Type / Tenure never silently rewrites a value already entered.
+The "typical" figure for the current selection is shown beside the label, for
+information only.
 """
 from __future__ import annotations
 from pathlib import Path
-import base64
 import inspect
 import joblib
 import pandas as pd
@@ -52,8 +54,6 @@ DATA_PATH = APP_DIR / "malaysia_house_price_cleaned_with_area.csv"
 RESULTS_PATH = APP_DIR / "model_results.csv"
 MODELS_DIR = APP_DIR / "models"
 FIGURES_DIR = APP_DIR / "figures"
-ASSETS_DIR = APP_DIR / "assets"
-BANNER_PATH = ASSETS_DIR / "malaysia_housing_banner.png"
 MODEL_FEATURES = ["State", "Area_Key", "Tenure", "Primary_Type", "Median_PSF", "Transactions"]
 
 # Streamlit >= 1.45 lets a selectbox accept a typed value outside its option
@@ -62,107 +62,100 @@ MODEL_FEATURES = ["State", "Area_Key", "Tenure", "Primary_Type", "Median_PSF", "
 SELECTBOX_ACCEPTS_NEW = "accept_new_options" in inspect.signature(st.selectbox).parameters
 NO_AREA = "— No specific area —"
 
-# Set to False for a flat navy top bar with no photograph behind it.
-USE_BANNER_IMAGE = True
-
 st.markdown(r"""
 <style>
 :root {
-    /* palette carried over unchanged from the previous version */
     --bg:#F6F8FB;
     --card:#FFFFFF;
+    --navy:#15243A;
+    --blue:#2F6FED;
     --text:#172033;
     --muted:#667085;
-    --blue:#2F6FED;
-    --navy:#183153;
+    --border:#E2E7EF;
     --green:#18875D;
     --amber:#C47A10;
-    --red:#C63C4A;
-    --border:#E2E7EF;
     --soft:#EEF4FF;
-    --radius:16px;
-    --shadow:0 8px 28px rgba(24,49,83,.07);
+    --radius:14px;
+    --shadow:0 6px 22px rgba(24,49,83,.06);
     --mono:ui-monospace,"SF Mono","Cascadia Mono",Menlo,Consolas,monospace;
 }
 .stApp { background:var(--bg); color:var(--text); }
-.block-container { max-width:1180px; padding-top:82px; padding-bottom:2rem; }
+/* padding-top clears the fixed navigation banner */
+.block-container { max-width:1180px; padding-top:80px; padding-bottom:2rem; }
 html,body,[class*="css"] { font-family:Inter,"Segoe UI",Roboto,Arial,sans-serif }
 h1,h2,h3,h4 { color:var(--navy) }
 
-/* ---------- Top bar: brand + nav pills, pinned to the very top ----------
-   The tab list IS the banner. It is fixed at top:0 so it sits on the same
-   row as Streamlit's Share / star / GitHub toolbar icons, whose own header
-   is made transparent below so this dark bar shows through behind them.
-   Brand text is injected as a ::before pseudo-element on the tab list.
-   The right-hand "BMDS2003 - 2025 DATA" label is deliberately NOT rendered
-   here: that space is occupied by Streamlit's toolbar and the two would
-   overlap. */
+/* ---------- Top navigation banner ----------
+   The top-level tab list IS the banner: fixed at top:0 and 58px tall so it
+   occupies the same strip as Streamlit's Share / star / GitHub icons, whose
+   own header is made transparent so this bar shows through behind them.
+   padding-right reserves space so the nav can never slide under the toolbar.
+   The Insights page uses a radio, not a second st.tabs, so these rules can
+   target the navigation unambiguously without fragile scoping. */
 .stTabs [data-baseweb="tab-list"] {
     position:fixed; top:0; left:0; right:0;
     height:58px; z-index:999989;
     display:flex; align-items:center; gap:6px;
-    padding:0 22px;
-    background-color:#152742;
-    background-size:cover; background-position:center;
+    padding:0 300px 0 22px;
+    background:var(--navy);
     border:none; border-radius:0;
-    box-shadow:0 2px 14px rgba(9,17,31,.20);
+    box-shadow:0 1px 0 rgba(255,255,255,.06);
 }
 .stTabs [data-baseweb="tab-list"]::before {
     content:"\2302\00a0\00a0Housing Price Estimator";
-    font-size:1.02rem; font-weight:750; color:#FFFFFF;
-    white-space:nowrap; margin-right:20px;
-    text-shadow:0 1px 3px rgba(9,17,31,.55);
+    font-size:1.02rem; font-weight:700; color:#FFFFFF;
+    white-space:nowrap; margin-right:22px;
 }
 .stTabs [data-baseweb="tab"] {
-    height:34px; padding:0 15px; border-radius:9px;
-    color:#B9C8DF; font-weight:650; font-size:.9rem;
+    height:34px; padding:0 15px; border-radius:999px;
+    color:#B9C8DF; font-weight:600; font-size:.9rem;
     background:transparent; border:none;
 }
-.stTabs [data-baseweb="tab"]:hover { color:#FFFFFF; background:rgba(255,255,255,.10); }
+.stTabs [data-baseweb="tab"]:hover { color:#FFFFFF; background:rgba(255,255,255,.09); }
 .stTabs [aria-selected="true"] {
-    color:#152742!important; background:#FFFFFF!important;
+    color:var(--navy)!important; background:#FFFFFF!important;
     border-bottom:none!important;
 }
 .stTabs [data-baseweb="tab-highlight"],
 .stTabs [data-baseweb="tab-border"] { display:none!important; }
 
-/* Let the dark bar show through Streamlit's own header, and lighten its
-   icons so Share / star / GitHub stay visible against the navy. */
+/* Let the banner show through Streamlit's header; keep its icons visible. */
 header[data-testid="stHeader"] { background:transparent!important; height:58px; }
 [data-testid="stToolbar"] { color:#E8EEF8!important; }
 [data-testid="stToolbar"] svg { fill:#E8EEF8!important; color:#E8EEF8!important; }
 [data-testid="stToolbar"] button, [data-testid="stToolbar"] a,
 [data-testid="stToolbar"] span, [data-testid="stToolbar"] p { color:#E8EEF8!important; }
 
-/* Segmented control used on the Insights page instead of a second st.tabs,
-   so the rules above can target the top navigation unambiguously. */
+/* Insights page segmented control (replaces a second st.tabs) */
 div[role="radiogroup"] { gap:8px; }
 
-/* ---------- Left input console ---------- */
+/* ---------- Left input card ---------- */
 .mh-panel-title {
     display:flex; align-items:center; gap:9px;
-    font-size:1.02rem; font-weight:700; color:var(--navy); margin:2px 0 14px 0;
+    font-size:1rem; font-weight:700; color:var(--navy); margin:2px 0 14px 0;
 }
 .mh-label {
     display:flex; align-items:baseline; justify-content:space-between;
     font-family:var(--mono); font-size:.72rem; letter-spacing:.1em;
     color:var(--muted); margin:2px 0 5px 0; text-transform:uppercase;
 }
-.mh-label .hint { font-family:Inter,sans-serif; letter-spacing:0; text-transform:none; font-size:.78rem; }
+.mh-label .hint {
+    font-family:Inter,sans-serif; letter-spacing:0;
+    text-transform:none; font-size:.78rem;
+}
 .mh-rule { border:none; border-top:1px solid var(--border); margin:16px 0 14px 0; }
 
-/* ---------- Right result panel ---------- */
+/* ---------- Right result column ---------- */
 .mh-result {
     background:var(--navy); border-radius:var(--radius);
     padding:26px 26px 24px; box-shadow:var(--shadow);
-    animation:fadeUp .22s ease both;
 }
 .mh-result .cap {
     font-family:var(--mono); font-size:.72rem; letter-spacing:.14em;
     color:#9FB4D4; text-transform:uppercase;
 }
 .mh-result .price {
-    font-size:2.7rem; font-weight:770; color:#FFFFFF;
+    font-size:2.7rem; font-weight:750; color:#FFFFFF;
     margin:8px 0 6px; line-height:1.05; letter-spacing:-.01em;
 }
 .mh-result .sub { color:#C9D7EC; font-size:.95rem; }
@@ -172,27 +165,27 @@ div[role="radiogroup"] { gap:8px; }
     font-family:var(--mono); font-size:.68rem; letter-spacing:.12em;
     color:#9FB4D4; text-transform:uppercase; margin-bottom:3px;
 }
-.mh-stats .v { font-family:var(--mono); font-size:.96rem; font-weight:700; color:#FFFFFF; }
+.mh-stats .v { font-family:var(--mono); font-size:.94rem; font-weight:700; color:#FFFFFF; }
 
-.mh-derive {
+/* Compact "Prediction inputs used" card */
+.mh-used {
     background:var(--card); border:1px solid var(--border);
-    border-radius:var(--radius); padding:18px 20px; box-shadow:var(--shadow); margin-top:14px;
+    border-radius:var(--radius); padding:16px 18px;
+    box-shadow:var(--shadow); margin-top:12px;
 }
-.mh-derive h4 { margin:0 0 12px 0; font-size:.98rem; font-weight:700; color:var(--navy); }
-.mh-drow {
-    display:flex; justify-content:space-between; align-items:baseline; gap:12px;
-    padding:7px 0; border-bottom:1px dashed var(--border); font-size:.9rem;
+.mh-used h4 { margin:0 0 10px 0; font-size:.94rem; font-weight:700; color:var(--navy); }
+.mh-used .row {
+    display:flex; justify-content:space-between; align-items:baseline;
+    padding:6px 0; font-size:.9rem;
 }
-.mh-drow:last-child { border-bottom:none; }
-.mh-drow .k { color:var(--muted); }
-.mh-drow .v { font-weight:650; color:var(--text); text-align:right; }
-.mh-drow .v.ok { color:var(--green); }
-.mh-drow .v.warn { color:var(--amber); }
+.mh-used .row + .row { border-top:1px dashed var(--border); }
+.mh-used .k { color:var(--muted); }
+.mh-used .v { font-weight:650; color:var(--text); font-family:var(--mono); }
 
 .mh-note {
-    display:flex; gap:9px; align-items:flex-start; margin-top:14px;
-    background:var(--soft); border:1px solid var(--border); border-radius:13px;
-    padding:13px 15px; font-size:.83rem; color:var(--muted); line-height:1.5;
+    display:flex; gap:9px; align-items:flex-start; margin-top:12px;
+    background:var(--soft); border:1px solid var(--border); border-radius:var(--radius);
+    padding:12px 15px; font-size:.82rem; color:var(--muted); line-height:1.5;
 }
 .mh-empty {
     background:var(--card); border:1px dashed #CFD8E6; border-radius:var(--radius);
@@ -201,16 +194,20 @@ div[role="radiogroup"] { gap:8px; }
 .mh-empty .icon { font-size:2rem; margin-bottom:10px; opacity:.7; }
 .mh-empty b { color:var(--navy); display:block; margin-bottom:4px; font-size:1rem; }
 
-.stButton>button { min-height:44px; border-radius:11px; font-weight:650; transition:transform .18s ease; }
-.stButton>button:hover { transform:translateY(-1px) }
+.stButton>button { min-height:44px; border-radius:11px; font-weight:650; }
 .stButton>button[kind="primary"] { background:var(--blue); border-color:var(--blue); }
-div[data-testid="stMetric"] { background:white; border:1px solid var(--border); border-radius:13px; padding:13px 15px; }
+.stButton>button[kind="secondary"] {
+    background:#FFFFFF; color:var(--text); border:1px solid var(--border);
+}
+div[data-testid="stMetric"] {
+    background:white; border:1px solid var(--border);
+    border-radius:13px; padding:13px 15px;
+}
 .mh-fig-caption { font-size:.86rem; color:var(--muted); margin:2px 0 18px 0; line-height:1.4; }
 
-@keyframes fadeUp { from{opacity:0;transform:translateY(8px);} to{opacity:1;transform:translateY(0);} }
 @media(max-width:820px){
-    .block-container{padding-left:12px;padding-right:12px;padding-top:76px;}
-    .stTabs [data-baseweb="tab-list"]{height:54px;padding:0 12px;}
+    .block-container{padding-left:12px;padding-right:12px;padding-top:74px;}
+    .stTabs [data-baseweb="tab-list"]{height:54px;padding:0 130px 0 12px;}
     .stTabs [data-baseweb="tab-list"]::before{font-size:.9rem;margin-right:10px;}
     .stTabs [data-baseweb="tab"]{padding:0 10px;font-size:.84rem;}
     header[data-testid="stHeader"]{height:54px;}
@@ -218,10 +215,12 @@ div[data-testid="stMetric"] { background:white; border:1px solid var(--border); 
     .mh-stats{grid-template-columns:1fr 1fr;}
 }
 @media(max-width:560px){
-    /* Drop the brand first so the three nav pills always remain reachable */
+    /* Drop the brand first so the three nav pills always stay reachable */
     .stTabs [data-baseweb="tab-list"]::before{display:none;}
 }
-@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important;}}
+@media(prefers-reduced-motion:reduce){
+    *,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important;}
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -241,18 +240,6 @@ def load_results():
 def load_model(name):
     filename = name.split(" (")[0].lower().replace(" ", "_") + ".pkl"
     return joblib.load(MODELS_DIR / filename)
-
-
-@st.cache_data(show_spinner=False)
-def encode_image(path_str: str) -> str | None:
-    """Base64-encode a local image, or return None if it is missing."""
-    path = Path(path_str)
-    if not path.exists() or not path.is_file():
-        return None
-    try:
-        return base64.b64encode(path.read_bytes()).decode()
-    except OSError:
-        return None
 
 
 def field_label(text: str, hint: str = "") -> None:
@@ -311,32 +298,12 @@ def derive_reference(data, state, area_clean, ptype, tenure):
     raise ValueError("No reference data available")
 
 
-def inject_topbar_background():
-    """Apply the banner photo to the tab bar (which doubles as the banner).
-
-    Set USE_BANNER_IMAGE = False for the flat navy bar with no photo. When the
-    photo is used, the scrim is kept strong enough on the left that the brand
-    text stays legible, and lighter toward the right so the image shows through.
-    """
-    encoded = encode_image(str(BANNER_PATH)) if USE_BANNER_IMAGE else None
-    if encoded:
-        scrim = ("linear-gradient(100deg, rgba(17,28,48,.92) 0%, "
-                 "rgba(17,28,48,.74) 42%, rgba(17,28,48,.55) 100%)")
-        background = f"{scrim}, url('data:image/png;base64,{encoded}')"
-    else:
-        background = "linear-gradient(100deg,#152742 0%,#1F3B63 100%)"
-    st.markdown(
-        "<style>.stTabs [data-baseweb=\"tab-list\"]{background-image:"
-        + background + ";}</style>",
-        unsafe_allow_html=True)
-
-
 # ---------------------------------------------------------------------------
-# PAGE 1 - PRICE PREDICTION (split console)
+# PAGE 1 - PRICE PREDICTION
 # ---------------------------------------------------------------------------
 def prediction_page(data, results):
     recommended = results.iloc[0]["Model"]
-    # Fixed, state-independent defaults so no selection ever rewrites them.
+    # Fixed, selection-independent defaults so no dropdown ever rewrites them.
     default_psf = int(round(data["Median_PSF"].median()))
     default_txn = int(round(data["Transactions"].median()))
     psf_min, psf_max = int(data["Median_PSF"].min()), int(data["Median_PSF"].max())
@@ -413,10 +380,10 @@ def prediction_page(data, results):
 
             b1, b2 = st.columns([2, 1])
             predict = b1.button("Predict Price", type="primary", use_container_width=True)
-            b2.button("Reset", use_container_width=True,
+            b2.button("Reset", type="secondary", use_container_width=True,
                       on_click=reset_prediction_form, key="reset_prediction")
 
-    # ---------------- RIGHT: live result ----------------
+    # ---------------- RIGHT: result ----------------
     with right:
         if not predict:
             st.markdown(
@@ -455,26 +422,32 @@ def prediction_page(data, results):
             </div>
         </div>''', unsafe_allow_html=True)
 
-        seen_cls = "ok" if area_seen else "warn"
-        seen_txt = "Yes" if area_seen else "No — broader market used"
         st.markdown(f'''
-        <div class="mh-derive">
-            <h4>How this was derived</h4>
-            <div class="mh-drow"><span class="k">Reference basis</span>
-                <span class="v">{reference['label']} (n={reference['n']})</span></div>
-            <div class="mh-drow"><span class="k">Median PSF used</span>
-                <span class="v">RM {psf:,}</span></div>
-            <div class="mh-drow"><span class="k">Transactions used</span>
-                <span class="v">{transactions:,}</span></div>
-            <div class="mh-drow"><span class="k">Area in training set</span>
-                <span class="v {seen_cls}">{seen_txt}</span></div>
+        <div class="mh-used">
+            <h4>Prediction inputs used</h4>
+            <div class="row"><span class="k">Median PSF</span><span class="v">RM {psf:,}</span></div>
+            <div class="row"><span class="k">Transactions</span><span class="v">{transactions:,}</span></div>
         </div>''', unsafe_allow_html=True)
 
         st.markdown(
-            '<div class="mh-note">ⓘ&nbsp;<span>Indicative only — township-level '
-            'medians from a static 2025 snapshot, not a formal valuation. Actual '
-            'price depends on property-specific factors not captured here.</span></div>',
+            '<div class="mh-note">ⓘ&nbsp;<span>Indicative township-level estimate '
+            'based on the static 2025 dataset. Not a formal property valuation.'
+            '</span></div>',
             unsafe_allow_html=True)
+
+        # Reference-lookup provenance is diagnostic, not part of the prediction
+        # story, so it is collapsed by default.
+        with st.expander("Technical details"):
+            st.markdown(
+                f"- **Reference source:** {reference['label']}\n"
+                f"- **Reference records:** {reference['n']:,}\n"
+                f"- **Area recognised:** {'Yes' if known_area else 'No'}\n"
+                f"- **Area seen during model training:** {'Yes' if area_seen else 'No'}\n"
+                f"- **Broader state reference values used:** "
+                f"{'No' if known_area else 'Yes'}")
+            st.caption("These describe where the suggested typical values came "
+                       "from. The prediction itself used exactly the Median PSF "
+                       "and Transactions shown above.")
 
 
 FIGURE_GROUPS = {
@@ -590,7 +563,6 @@ def main():
     if missing:
         st.error("Missing required files: " + ", ".join(missing)); st.stop()
     data = load_data(); results = load_results()
-    inject_topbar_background()
     pred, insights, report = st.tabs(["Prediction", "Insights", "Model Report"])
     with pred: prediction_page(data, results)
     with insights: insights_page(data)
