@@ -536,7 +536,7 @@ def insights_page(data):
                                "Tenure", "Median_Price", "Median_PSF", "Transactions"]].copy()
                 st.dataframe(show, use_container_width=True, hide_index=True)
     else:
-        st.caption("Short explanations are included under each chart for presentation use.")
+        
         group = st.selectbox("Insight category", list(FIGURE_GROUPS))
         for filename, caption in FIGURE_GROUPS[group]:
             path = FIGURES_DIR / filename
