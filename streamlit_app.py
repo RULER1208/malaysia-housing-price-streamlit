@@ -463,11 +463,7 @@ def prediction_page(data, results):
             <div class="row"><span class="k">Transactions</span><span class="v">{transactions:,}</span></div>
         </div>''', unsafe_allow_html=True)
 
-        st.markdown(
-            '<div class="mh-note">ⓘ&nbsp;<span>Indicative township-level estimate '
-            'based on the static 2025 dataset. Not a formal property valuation.'
-            '</span></div>',
-            unsafe_allow_html=True)
+
 
         with st.expander("Technical details"):
             st.markdown(
