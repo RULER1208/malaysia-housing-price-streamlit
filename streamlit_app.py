@@ -114,7 +114,11 @@ header[data-testid="stHeader"] { background:transparent!important; }
     white-space:nowrap; margin-right:24px;
 }
 .stTabs [role="tablist"]::after,
-
+.stTabs [data-baseweb="tab-list"]::after {
+    content:"BMDS2003 \00b7 2025 SNAPSHOT";
+    margin-left:auto; white-space:nowrap;
+    font-family:var(--mono); font-size:.72rem; letter-spacing:.1em;
+    color:#8FA6C6;
 }
 .stTabs [role="tab"],
 .stTabs [data-baseweb="tab"] {
@@ -339,7 +343,10 @@ def prediction_page(data, results):
     # ---------------- LEFT: inputs ----------------
     with left:
         with st.container(border=True):
-
+            st.markdown('<div class="mh-panel-title">⚙ Inputs</div>'
+                        '<p class="mh-panel-sub">Your values stay exactly as you set '
+                        'them — changing one field never rewrites another.</p>',
+                        unsafe_allow_html=True)
 
             field_label("State")
             state = st.selectbox("State", sorted(data["State"].unique()),
