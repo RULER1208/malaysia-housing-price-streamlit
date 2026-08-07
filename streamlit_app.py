@@ -114,11 +114,7 @@ header[data-testid="stHeader"] { background:transparent!important; }
     white-space:nowrap; margin-right:24px;
 }
 .stTabs [role="tablist"]::after,
-.stTabs [data-baseweb="tab-list"]::after {
-    content:"BMDS2003 \00b7 2025 SNAPSHOT";
-    margin-left:auto; white-space:nowrap;
-    font-family:var(--mono); font-size:.72rem; letter-spacing:.1em;
-    color:#8FA6C6;
+
 }
 .stTabs [role="tab"],
 .stTabs [data-baseweb="tab"] {
