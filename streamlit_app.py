@@ -343,10 +343,7 @@ def prediction_page(data, results):
     # ---------------- LEFT: inputs ----------------
     with left:
         with st.container(border=True):
-            st.markdown('<div class="mh-panel-title">⚙ Inputs</div>'
-                        '<p class="mh-panel-sub">Your values stay exactly as you set '
-                        'them — changing one field never rewrites another.</p>',
-                        unsafe_allow_html=True)
+
 
             field_label("State")
             state = st.selectbox("State", sorted(data["State"].unique()),
