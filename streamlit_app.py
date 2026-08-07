@@ -391,9 +391,7 @@ def prediction_page(data, results):
                                            value=default_txn, key="pred_txn",
                                            label_visibility="collapsed")
 
-            st.info(f"Typical here: RM {reference['psf']:,}/sq ft, "
-                    f"{reference['transactions']:,} transactions — "
-                    f"{reference['label'].lower()}, n={reference['n']:,}.")
+            
 
             field_label("Model")
             labels, mapping = [], {}
