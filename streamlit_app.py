@@ -115,7 +115,7 @@ header[data-testid="stHeader"] { background:transparent!important; }
 }
 .stTabs [role="tablist"]::after,
 .stTabs [data-baseweb="tab-list"]::after {
-    content:"BMDS2003 \00b7 2025 SNAPSHO";
+    content:"BMDS2003 \00b7 ";
     margin-left:auto; white-space:nowrap;
     font-family:var(--mono); font-size:.72rem; letter-spacing:.1em;
     color:#8FA6C6;
