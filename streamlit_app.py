@@ -155,26 +155,56 @@ HARDCODED_AREAS = {
 # ---------------------------------------------------------------------------
 st.markdown(r"""
 <style>
-:root { --navy:#15243A; --blue:#2F6FED; --muted:#667085; --border:#E2E7EF; --mono:ui-monospace,"SF Mono",monospace; }
+:root {
+    --navy:#15243A;
+    --blue:#4F6FEA;
+    --blue-dark:#3558D8;
+    --muted:#667085;
+    --border:#E2E7EF;
+    --mono:ui-monospace,"SF Mono",monospace;
+    --card:#FFFFFF;
+    --shadow:0 10px 30px rgba(21,36,58,.08);
+}
 .stApp { background:#F6F8FB; color:#172033; }
-.block-container { max-width:1180px; padding-top:12px!important; padding-bottom:2rem; }
+.block-container { max-width:1200px; padding-top:14px!important; padding-bottom:2rem; }
 header[data-testid="stHeader"] { background:transparent!important; }
 
 /* Navigation Banner */
 .stTabs [role="tablist"] {
     display:flex!important; align-items:center!important; gap:8px!important;
     min-height:62px; padding:0 210px 0 22px!important;
-    background:var(--navy)!important; border-radius:14px!important; margin-bottom:22px!important;
+    background:var(--navy)!important; border-radius:16px!important; margin-bottom:24px!important;
+    box-shadow:var(--shadow);
 }
-.stTabs [role="tablist"]::before { content:"\2302\00a0\00a0Malaysia Housing Estimator"; font-size:1.04rem; font-weight:700; color:#FFFFFF; margin-right:24px; }
-.stTabs [role="tab"] { height:38px!important; padding:0 18px!important; border-radius:999px!important; color:#B9C8DF!important; font-weight:600; background:transparent!important; border:none!important; }
+.stTabs [role="tablist"]::before {
+    content:"⌂  Malaysia Housing Estimator";
+    font-size:1.04rem; font-weight:700; color:#FFFFFF; margin-right:24px;
+}
+.stTabs [role="tab"] {
+    height:38px!important; padding:0 18px!important; border-radius:999px!important;
+    color:#B9C8DF!important; font-weight:600; background:transparent!important; border:none!important;
+}
 .stTabs [role="tab"][aria-selected="true"] { color:var(--navy)!important; background:#FFFFFF!important; }
 .stTabs [data-baseweb="tab-highlight"], .stTabs [data-baseweb="tab-border"] { display:none!important; }
 
-/* Labels & Results */
-.mh-label { font-family:var(--mono); font-size:.72rem; letter-spacing:.1em; color:var(--muted); margin:2px 0 5px 0; text-transform:uppercase; }
-.mh-rule { border:none; border-top:1px solid var(--border); margin:16px 0 14px 0; }
-.mh-result { background:var(--navy); border-radius:14px; padding:26px; box-shadow:0 6px 22px rgba(24,49,83,.06); margin-top:20px; }
+/* Labels & Sections */
+.mh-label { font-family:var(--mono); font-size:.78rem; letter-spacing:.18em; color:var(--muted); margin:2px 0 8px 0; text-transform:uppercase; }
+.mh-rule { border:none; border-top:1px solid var(--border); margin:22px 0 18px 0; }
+.mh-section-title { margin:0; color:#1E293B; }
+.mh-section-note { color:#667085; font-size:.95rem; margin:.35rem 0 0; }
+.mh-chiprow { display:flex; flex-wrap:wrap; gap:10px; margin-top:10px; }
+.mh-chip {
+    display:inline-flex; align-items:center; gap:8px; background:#FFFFFF; border:1px solid var(--border);
+    padding:8px 12px; border-radius:999px; color:#344054; font-size:.92rem; box-shadow:0 2px 10px rgba(15,23,42,.04);
+}
+.mh-chip strong { color:#0F172A; }
+.mh-map-tip {
+    background:linear-gradient(180deg, #FFFFFF 0%, #F9FBFF 100%);
+    border:1px solid var(--border); border-radius:14px; padding:12px 14px; color:#475467;
+    font-size:.92rem; margin-bottom:12px;
+}
+.mh-map-tip b { color:#1D2939; }
+.mh-result { background:var(--navy); border-radius:16px; padding:26px; box-shadow:0 8px 24px rgba(24,49,83,.09); margin-top:20px; }
 .mh-result .cap { font-family:var(--mono); font-size:.72rem; letter-spacing:.14em; color:#9FB4D4; text-transform:uppercase; }
 .mh-result .price { font-size:2.7rem; font-weight:750; color:#FFFFFF; margin:8px 0 6px; }
 .mh-result .sub { color:#C9D7EC; font-size:.95rem; }
@@ -182,14 +212,55 @@ header[data-testid="stHeader"] { background:transparent!important; }
 .mh-stats { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; }
 .mh-stats .k { font-family:var(--mono); font-size:.68rem; letter-spacing:.12em; color:#9FB4D4; text-transform:uppercase; margin-bottom:3px; }
 .mh-stats .v { font-family:var(--mono); font-size:.94rem; font-weight:700; color:#FFFFFF; }
-.stButton>button[kind="primary"] { background:var(--blue); border-color:var(--blue); border-radius:11px; min-height:44px;}
-.mh-empty { background:#FFFFFF; border:1px dashed #CFD8E6; border-radius:14px; padding:52px 24px; text-align:center; color:var(--muted); box-shadow:var(--shadow); margin-top:20px;}
+.stButton>button[kind="primary"] {
+    background:var(--blue); border-color:var(--blue); border-radius:14px; min-height:48px; box-shadow:0 10px 20px rgba(79,111,234,.18);
+}
+.stButton>button[kind="primary"]:hover { background:var(--blue-dark); border-color:var(--blue-dark); }
+.mh-empty { background:#FFFFFF; border:1px dashed #CFD8E6; border-radius:16px; padding:52px 24px; text-align:center; color:var(--muted); box-shadow:0 4px 18px rgba(15,23,42,.05); margin-top:20px;}
 
 /* Custom Tenure Radio Pills layout */
 div[role="radiogroup"] { gap: 15px; }
 
-/* Property Type cards now use real Streamlit buttons directly.
-   No transparent/empty overlay button is used. */
+/* Property selector: direct-click buttons, no overlay / no empty box */
+div[data-testid="stVerticalBlock"]:has(.property-grid-anchor) div.stButton > button[kind="secondary"],
+div[data-testid="stVerticalBlock"]:has(.property-grid-anchor) div.stButton > button[kind="primary"] {
+    min-height: 94px !important;
+    border-radius: 18px !important;
+    white-space: pre-line !important;
+    line-height: 1.3 !important;
+    padding: 14px 12px !important;
+    font-weight: 650 !important;
+    font-size: 1.02rem !important;
+    text-align: center !important;
+    box-shadow: 0 6px 18px rgba(15,23,42,.06) !important;
+}
+
+div[data-testid="stVerticalBlock"]:has(.property-grid-anchor) div.stButton > button[kind="secondary"] {
+    background: #FFFFFF !important;
+    color: #1F2937 !important;
+    border: 1px solid #D8DFEB !important;
+}
+
+div[data-testid="stVerticalBlock"]:has(.property-grid-anchor) div.stButton > button[kind="secondary"]:hover {
+    border-color: #A7B8F8 !important;
+    color: #2744B2 !important;
+    transform: translateY(-1px);
+}
+
+div[data-testid="stVerticalBlock"]:has(.property-grid-anchor) div.stButton > button[kind="primary"] {
+    background: linear-gradient(180deg, #5A78EC 0%, #4B66DF 100%) !important;
+    color: #FFFFFF !important;
+    border: none !important;
+}
+
+/* Neat number input */
+div[data-testid="stNumberInputContainer"] {
+    background:#FFFFFF; border:1px solid var(--border); border-radius:14px; padding:2px 6px;
+}
+
+@media (max-width: 900px) {
+    .mh-stats { grid-template-columns:1fr; }
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -213,9 +284,8 @@ def load_model(name):
 def get_area_coords(area_name: str, state_name: str):
     if state_name in HARDCODED_AREAS and area_name in HARDCODED_AREAS[state_name]:
         return HARDCODED_AREAS[state_name][area_name]
-    
-    # For official districts/localities that are not hardcoded, ask OpenStreetMap
-    # Nominatim for the real location. Never invent a fake hash-offset coordinate.
+
+    # Try real coordinates first.
     if HAS_GEOPY:
         try:
             geolocator = Nominatim(user_agent="mh_estimator", timeout=4)
@@ -232,40 +302,29 @@ def get_area_coords(area_name: str, state_name: str):
     # Perlis and Federal Territories have no lower DOSM administrative district.
     if area_name == state_name:
         return STATE_COORDS.get(state_name)
-    return None
+
+    # Last-resort visible fallback so every area still appears on the map.
+    base = STATE_COORDS.get(state_name)
+    if not base:
+        return None
+    h = int(hashlib.md5(f"{state_name}|{area_name}".encode("utf-8")).hexdigest(), 16)
+    lat_offset = (((h % 1000) / 999) - 0.5) * 0.9
+    lon_offset = ((((h // 1000) % 1000) / 999) - 0.5) * 1.2
+    return [base[0] + lat_offset, base[1] + lon_offset]
 
 def field_label(text: str) -> None:
     st.markdown(f'<div class="mh-label">{text}</div>', unsafe_allow_html=True)
 
-def get_colored_svg(ptype: str, is_selected: bool) -> str:
-    """Returns a fully colored SVG card tailored to property types, using a green border for selection."""
-    c_roof = "#E63946"  
-    c_wall = "#F1FAEE"  
-    c_door = "#1D3557"  
-    c_glass = "#A8DADC" 
-    c_frame = "#457B9D" 
-    c_accent = "#F4A261" 
-    
-    # Selection styling focuses on Green border and subtle scaling, retaining full colors either way
-    bg = "#F0FDF4" if is_selected else "#FFFFFF"
-    border = "2px solid #10B981" if is_selected else "1px solid #E2E7EF"
-    txt_color = "#18875D" if is_selected else "#667085"
-    filter_style = "transform: scale(1.05);" if is_selected else "transform: scale(1.0); opacity: 0.85;"
-    
-    if ptype == "Bungalow":
-        svg = f'<path fill="{c_roof}" d="M12 2L2 12h3v10h14V12h3L12 2z"/><rect fill="{c_wall}" x="5" y="12" width="14" height="10"/><rect fill="{c_door}" x="10" y="14" width="4" height="8"/><rect fill="{c_glass}" x="6" y="14" width="3" height="4"/><rect fill="{c_glass}" x="15" y="14" width="3" height="4"/>'
-    elif ptype == "Semi D":
-        svg = f'<path fill="{c_roof}" d="M12 2L2 12h10V2z"/><path fill="{c_accent}" d="M12 2l10 10h-10V2z"/><rect fill="{c_wall}" x="5" y="12" width="14" height="10"/><rect fill="{c_door}" x="6" y="14" width="4" height="8"/><rect fill="{c_door}" x="14" y="14" width="4" height="8"/>'
-    elif ptype == "Terrace House":
-        svg = f'<path fill="{c_roof}" d="M1 10l3-3v-3h2v1l2-2 4 4V10H1z"/><path fill="{c_accent}" d="M9 10l3-3v-3h2v1l2-2 4 4V10H9z"/><path fill="{c_frame}" d="M17 10l3-3v-3h2v1l2-2 4 4V10h-11z"/><rect fill="{c_wall}" x="2" y="10" width="20" height="12"/><rect fill="{c_door}" x="3" y="14" width="3" height="8"/><rect fill="{c_door}" x="11" y="14" width="3" height="8"/><rect fill="{c_door}" x="19" y="14" width="3" height="8"/>'
-    elif ptype == "Condominium":
-        svg = f'<rect fill="{c_frame}" x="5" y="2" width="14" height="20"/><rect fill="{c_glass}" x="7" y="4" width="4" height="4"/><rect fill="{c_glass}" x="13" y="4" width="4" height="4"/><rect fill="{c_glass}" x="7" y="10" width="4" height="4"/><rect fill="{c_glass}" x="13" y="10" width="4" height="4"/><rect fill="{c_glass}" x="7" y="16" width="4" height="4"/><rect fill="{c_glass}" x="13" y="16" width="4" height="4"/>'
-    elif ptype in ["Apartment", "Flat", "Service Residence"]:
-        svg = f'<rect fill="{c_accent}" x="4" y="4" width="16" height="18"/><rect fill="{c_wall}" x="6" y="6" width="3" height="3"/><rect fill="{c_wall}" x="10" y="6" width="3" height="3"/><rect fill="{c_wall}" x="14" y="6" width="3" height="3"/><rect fill="{c_wall}" x="6" y="11" width="3" height="3"/><rect fill="{c_wall}" x="10" y="11" width="3" height="3"/><rect fill="{c_wall}" x="14" y="11" width="3" height="3"/><rect fill="{c_door}" x="10" y="16" width="4" height="6"/>'
-    else:
-        svg = f'<path fill="{c_frame}" d="M12 3L2 12h3v10h14V12h3L12 3z"/><rect fill="{c_wall}" x="5" y="12" width="14" height="10"/><rect fill="{c_accent}" x="10" y="15" width="4" height="7"/>'
-        
-    return f'<div class="ptype-card" style="border:{border}; background:{bg}; border-radius:12px; padding:15px 4px; text-align:center; height:105px; display:flex; flex-direction:column; justify-content:center; align-items:center;"><svg style="{filter_style} transition: all 0.2s ease-in-out;" width="42" height="42" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">{svg}</svg><div style="font-size:0.75rem; font-weight:650; color:{txt_color}; margin-top:8px; line-height:1.1;">{ptype}</div></div>'
+def get_property_icon(ptype: str) -> str:
+    ptype_icons = {
+        "Bungalow": "🏠", "Semi D": "🏘️", "Cluster House": "🏡",
+        "Terrace House": "🏘️", "Town House": "🏠", "Condominium": "🏢",
+        "Service Residence": "🏙️", "Apartment": "🏢", "Flat": "🏬",
+    }
+    return ptype_icons.get(ptype, "🏠")
+
+def get_property_label(ptype: str) -> str:
+    return f"{get_property_icon(ptype)}\n{ptype}"
 
 # ---------------------------------------------------------------------------
 # LOGIC CONTROLLERS
@@ -349,8 +408,10 @@ def prediction_page(data, results):
     current_state = st.session_state["selected_state"]
     current_area = st.session_state["selected_area"]
     
-    st.markdown("<h3 style='margin-top:0;'>📍 1. Location Selection</h3>", unsafe_allow_html=True)
-    
+    st.markdown("<h3 class='mh-section-title'>📍 1. Location Selection</h3>", unsafe_allow_html=True)
+    st.markdown("<p class='mh-section-note'>Select your location directly from the map. First choose a state, then the map zooms in so you can choose the area.</p>", unsafe_allow_html=True)
+    st.markdown("<div class='mh-map-tip'><b>How to use:</b> click a <b>state</b> pin first. After the map zooms in, click an <b>area</b> pin for that state. The map includes all 16 Malaysia state / federal territory entries and combines your housing-dataset localities with the official district list for nationwide coverage.</div>", unsafe_allow_html=True)
+
     st.text_input("Enter your address or postcode to auto-detect location, or click the map below:", 
                   placeholder="e.g. 45400 or Sekinchan, Selangor",
                   key="address_input", on_change=analyze_address, args=(data, available_states))
@@ -358,7 +419,7 @@ def prediction_page(data, results):
     map_center = st.session_state.get("map_center", [4.2105, 108.9758] if not current_state else STATE_COORDS.get(current_state, [4.2105, 108.9758]))
     map_zoom = st.session_state.get("map_zoom", 6 if not current_state else 9)
     
-    m = folium.Map(location=map_center, zoom_start=map_zoom, tiles="OpenStreetMap")
+    m = folium.Map(location=map_center, zoom_start=map_zoom, tiles="CartoDB positron", control_scale=True)
 
     if not current_state:
         for st_name in available_states:
@@ -382,7 +443,7 @@ def prediction_page(data, results):
             
         marker_cluster = MarkerCluster(name="Areas").add_to(m)
         
-        for disp_area in areas_to_plot:
+        for disp_area in sorted(areas_to_plot):
             coords = get_area_coords(disp_area, current_state)
             if coords:
                 is_sel = (disp_area == current_area)
@@ -394,7 +455,7 @@ def prediction_page(data, results):
                     popup=f"AREA:{disp_area}"
                 ).add_to(marker_cluster)
 
-    map_data = st_folium(m, height=350, use_container_width=True, key="malaysia_map")
+    map_data = st_folium(m, height=430, use_container_width=True, key="malaysia_map")
     
     if map_data and map_data.get("last_object_clicked_popup"):
         popup_txt = map_data["last_object_clicked_popup"]
@@ -414,35 +475,38 @@ def prediction_page(data, results):
 
     col_loc1, col_loc2 = st.columns([4, 1])
     with col_loc1:
-        st.markdown(f"**State:** {current_state or 'Not Selected'} &nbsp; | &nbsp; **Area:** {current_area or 'Not Selected'}")
+        st.markdown(f"<div class='mh-chiprow'><span class='mh-chip'>📍 <strong>State:</strong> {current_state or 'Not Selected'}</span><span class='mh-chip'>🗺️ <strong>Area:</strong> {current_area or 'Not Selected'}</span></div>", unsafe_allow_html=True)
     with col_loc2:
         st.button("Reset Location", use_container_width=True, on_click=reset_location_state)
 
     st.markdown('<hr class="mh-rule">', unsafe_allow_html=True)
-    st.markdown("<h3 style='margin-top:0;'>🏡 2. Property Details</h3>", unsafe_allow_html=True)
+    st.markdown("<h3 class='mh-section-title'>🏡 2. Property Details</h3>", unsafe_allow_html=True)
+    st.markdown("<p class='mh-section-note'>Choose a property type, then set the tenure and median price per square foot.</p>", unsafe_allow_html=True)
 
     # ---------------- DIRECT-CLICK PROPERTY TYPE CARDS ----------------
-    # Real buttons: no blank/transparent overlay. Selection logic is unchanged.
     field_label("Select Property Type")
-    ptype_icons = {
-        "Bungalow": "🏠", "Semi D": "🏘️", "Cluster House": "🏡",
-        "Terrace House": "🏘️", "Town House": "🏠", "Condominium": "🏢",
-        "Service Residence": "🏙️", "Apartment": "🏢", "Flat": "🏬",
-    }
-    svg_cols = st.columns(len(ptypes))
+    st.markdown("<div class='property-grid-anchor'></div>", unsafe_allow_html=True)
+    row_size = 4
+    for start_idx in range(0, len(ptypes), row_size):
+        row = ptypes[start_idx:start_idx + row_size]
+        row_cols = st.columns(row_size)
+        for col_idx in range(row_size):
+            with row_cols[col_idx]:
+                if col_idx < len(row):
+                    pt = row[col_idx]
+                    is_sel = (pt == st.session_state["selected_ptype"])
+                    if st.button(
+                        get_property_label(pt),
+                        key=f"btn_{pt}",
+                        type="primary" if is_sel else "secondary",
+                        use_container_width=True,
+                    ):
+                        st.session_state["selected_ptype"] = pt
+                        st.rerun()
+                else:
+                    st.empty()
 
-    for i, pt in enumerate(ptypes):
-        with svg_cols[i]:
-            is_sel = (pt == st.session_state["selected_ptype"])
-            icon = ptype_icons.get(pt, "🏠")
-            if st.button(
-                f"{icon}  {pt}",
-                key=f"btn_{pt}",
-                type="primary" if is_sel else "secondary",
-                use_container_width=True,
-            ):
-                st.session_state["selected_ptype"] = pt
-                st.rerun()
+    st.caption(f"Selected property type: {st.session_state['selected_ptype']}")
 
     # Numerical Inputs
     col_in1, col_in2 = st.columns(2)
