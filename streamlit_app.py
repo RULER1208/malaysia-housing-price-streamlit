@@ -55,7 +55,7 @@ STATE_COORDS = {
     "Putrajaya": [2.9264, 101.6964], "Labuan": [5.2831, 115.2308]
 }
 
-# Grouped hardcoded areas by state to ensure they ALWAYS appear accurately on the map
+# Massively expanded pre-calculated real-world coordinates for exact map pins
 HARDCODED_AREAS = {
     "Selangor": {
         "Sekinchan": [3.5053, 101.1036], "Tanjong Karang": [3.4267, 101.1773],
@@ -124,7 +124,7 @@ HARDCODED_AREAS = {
 }
 
 # ---------------------------------------------------------------------------
-# STYLES & UNIVERSAL SVG BUTTON FIX
+# STYLES & FLAWLESS CSS GRID OVERLAY
 # ---------------------------------------------------------------------------
 st.markdown(r"""
 <style>
@@ -158,25 +158,26 @@ header[data-testid="stHeader"] { background:transparent!important; }
 .stButton>button[kind="primary"] { background:var(--blue); border-color:var(--blue); border-radius:11px; min-height:44px;}
 .mh-empty { background:#FFFFFF; border:1px dashed #CFD8E6; border-radius:14px; padding:52px 24px; text-align:center; color:var(--muted); box-shadow:var(--shadow); margin-top:20px;}
 
+/* Custom Tenure Radio Pills layout */
+div[role="radiogroup"] { gap: 15px; }
+
 /* 
-  UNIVERSAL BUTTON HACK:
-  This pulls the invisible Streamlit button exactly over the SVG image so the empty box disappears entirely.
-  This targets ONLY the secondary element in the column, preventing layout collapse.
+  FLAWLESS GRID BUTTON HACK:
+  Forces the container of the SVG Card and the Button to share the exact same 1x1 CSS grid space.
+  This allows the invisible button to completely cover the SVG natively without translation bugs or white boxes.
 */
-div[data-testid="column"] > div.element-container:nth-child(2) {
-    height: 0px !important;
-    min-height: 0px !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    overflow: visible !important;
-    display: block !important;
+div[data-testid="column"]:has(.ptype-card) {
+    display: grid !important;
 }
-div[data-testid="column"] > div.element-container:nth-child(2) div[data-testid="stButton"] button {
-    transform: translateY(-105px) !important;
-    height: 105px !important;
+div[data-testid="column"]:has(.ptype-card) > div {
+    grid-area: 1 / 1 !important;
+}
+div[data-testid="column"]:has(.ptype-card) button {
+    height: 100% !important;
+    width: 100% !important;
     opacity: 0 !important;
-    z-index: 999 !important;
     cursor: pointer !important;
+    margin: 0 !important;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -199,7 +200,6 @@ def load_model(name):
 
 @st.cache_data(show_spinner=False)
 def get_area_coords(area_name: str, state_name: str):
-    """Retrieve precise map coordinates for an area."""
     if state_name in HARDCODED_AREAS and area_name in HARDCODED_AREAS[state_name]:
         return HARDCODED_AREAS[state_name][area_name]
     
@@ -212,7 +212,6 @@ def get_area_coords(area_name: str, state_name: str):
                 return [loc.latitude, loc.longitude]
         except: pass
             
-    # Deterministic procedural scatter (tightly clustered inland around state center)
     base_coords = STATE_COORDS.get(state_name, [4.2105, 108.9758])
     hash_val = int(hashlib.md5(area_name.encode('utf-8')).hexdigest(), 16)
     lat_offset = ((hash_val % 100) / 100.0 - 0.5) * 0.4
@@ -223,7 +222,7 @@ def field_label(text: str) -> None:
     st.markdown(f'<div class="mh-label">{text}</div>', unsafe_allow_html=True)
 
 def get_colored_svg(ptype: str, is_selected: bool) -> str:
-    """Returns a vibrant, multi-colored SVG tailored to property types."""
+    """Returns a fully colored SVG card tailored to property types, using a green border for selection."""
     c_roof = "#E63946"  
     c_wall = "#F1FAEE"  
     c_door = "#1D3557"  
@@ -231,10 +230,11 @@ def get_colored_svg(ptype: str, is_selected: bool) -> str:
     c_frame = "#457B9D" 
     c_accent = "#F4A261" 
     
-    bg = "#EEF4FF" if is_selected else "#FFFFFF"
-    border = "2px solid #2F6FED" if is_selected else "1px solid #E2E7EF"
-    txt_color = "#2F6FED" if is_selected else "#667085"
-    filter_style = "filter: grayscale(0%) opacity(100%); transform: scale(1.05);" if is_selected else "filter: grayscale(100%) opacity(40%);"
+    # Selection styling focuses on Green border and subtle scaling, retaining full colors either way
+    bg = "#F0FDF4" if is_selected else "#FFFFFF"
+    border = "2px solid #10B981" if is_selected else "1px solid #E2E7EF"
+    txt_color = "#18875D" if is_selected else "#667085"
+    filter_style = "transform: scale(1.05);" if is_selected else "transform: scale(1.0); opacity: 0.85;"
     
     if ptype == "Bungalow":
         svg = f'<path fill="{c_roof}" d="M12 2L2 12h3v10h14V12h3L12 2z"/><rect fill="{c_wall}" x="5" y="12" width="14" height="10"/><rect fill="{c_door}" x="10" y="14" width="4" height="8"/><rect fill="{c_glass}" x="6" y="14" width="3" height="4"/><rect fill="{c_glass}" x="15" y="14" width="3" height="4"/>'
@@ -249,13 +249,12 @@ def get_colored_svg(ptype: str, is_selected: bool) -> str:
     else:
         svg = f'<path fill="{c_frame}" d="M12 3L2 12h3v10h14V12h3L12 3z"/><rect fill="{c_wall}" x="5" y="12" width="14" height="10"/><rect fill="{c_accent}" x="10" y="15" width="4" height="7"/>'
         
-    return f'<div style="border:{border}; background:{bg}; border-radius:12px; padding:15px 4px; text-align:center; height:105px; display:flex; flex-direction:column; justify-content:center; align-items:center;"><svg style="{filter_style} transition: all 0.2s ease-in-out;" width="42" height="42" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">{svg}</svg><div style="font-size:0.75rem; font-weight:650; color:{txt_color}; margin-top:8px; line-height:1.1;">{ptype}</div></div>'
+    return f'<div class="ptype-card" style="border:{border}; background:{bg}; border-radius:12px; padding:15px 4px; text-align:center; height:105px; display:flex; flex-direction:column; justify-content:center; align-items:center;"><svg style="{filter_style} transition: all 0.2s ease-in-out;" width="42" height="42" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">{svg}</svg><div style="font-size:0.75rem; font-weight:650; color:{txt_color}; margin-top:8px; line-height:1.1;">{ptype}</div></div>'
 
 # ---------------------------------------------------------------------------
 # LOGIC CONTROLLERS
 # ---------------------------------------------------------------------------
 def reset_location_state():
-    """Explicitly reset location logic including the text input box."""
     st.session_state["selected_state"] = None
     st.session_state["selected_area"] = None
     st.session_state["map_center"] = [4.2105, 108.9758]
@@ -263,14 +262,12 @@ def reset_location_state():
     st.session_state["address_input"] = "" 
 
 def analyze_address(data, available_states):
-    """Fired when user types an address. Detects Postcodes & Text, updates map zoom."""
     addr = st.session_state.get("address_input", "").lower()
     if not addr: return
 
     matched_state = None
     matched_area = None
     
-    # 1. Check for exactly 5 digits (Postcode match via Geopy)
     postcode_match = re.search(r'\b\d{5}\b', addr)
     if postcode_match and HAS_GEOPY:
         postcode = postcode_match.group()
@@ -290,7 +287,6 @@ def analyze_address(data, available_states):
                     matched_area = display_name(raw_area)
         except: pass
 
-    # 2. String Match Fallback if Postcode fails
     if not matched_state:
         for st_name in sorted(available_states, key=len, reverse=True):
             if st_name.lower() in addr:
@@ -298,7 +294,6 @@ def analyze_address(data, available_states):
                 break
                 
     if matched_state and not matched_area:
-        # Match against Dataset Areas OR Hardcoded Areas
         valid_areas = set([display_name(a) for a in data[data["State"] == matched_state]["Area_Clean"].dropna().unique()])
         if matched_state in HARDCODED_AREAS:
             valid_areas.update(HARDCODED_AREAS[matched_state].keys())
@@ -308,7 +303,6 @@ def analyze_address(data, available_states):
                 matched_area = a
                 break
 
-    # 3. Apply state and zoom changes
     if matched_state:
         st.session_state["selected_state"] = matched_state
         if matched_area:
@@ -349,7 +343,6 @@ def prediction_page(data, results):
     
     m = folium.Map(location=map_center, zoom_start=map_zoom, tiles="OpenStreetMap")
 
-    # Map Mode 1: Malaysia State Overview
     if not current_state:
         for st_name in available_states:
             if st_name in STATE_COORDS:
@@ -360,12 +353,10 @@ def prediction_page(data, results):
                     popup=f"STATE:{st_name}"
                 ).add_to(m)
                 
-    # Map Mode 2: Dynamic Area Drill-Down (Dataset + Hardcoded combined)
     else:
         all_state_areas = data[data["State"] == current_state]["Area_Clean"].dropna().unique()
         areas_to_plot = set([display_name(a) for a in all_state_areas])
         
-        # Ensure our specific hardcoded areas ALWAYS appear on the map for the state
         if current_state in HARDCODED_AREAS:
             areas_to_plot.update(HARDCODED_AREAS[current_state].keys())
         if current_area:
@@ -387,7 +378,6 @@ def prediction_page(data, results):
 
     map_data = st_folium(m, height=350, use_container_width=True, key="malaysia_map")
     
-    # Process Map Clicks
     if map_data and map_data.get("last_object_clicked_popup"):
         popup_txt = map_data["last_object_clicked_popup"]
         if popup_txt.startswith("STATE:"):
@@ -413,28 +403,24 @@ def prediction_page(data, results):
     st.markdown('<hr class="mh-rule">', unsafe_allow_html=True)
     st.markdown("<h3 style='margin-top:0;'>🏡 2. Property Details</h3>", unsafe_allow_html=True)
 
-    # ---------------- UNIVERSAL CSS BUTTON OVERLAY ----------------
+    # ---------------- FLAWLESS SVG BUTTON OVERLAY ----------------
     field_label("Select Property Type")
     svg_cols = st.columns(len(ptypes))
     
     for i, pt in enumerate(ptypes):
         with svg_cols[i]:
             is_sel = (pt == st.session_state["selected_ptype"])
-            
-            # The SVG UI element
             st.markdown(get_colored_svg(pt, is_sel), unsafe_allow_html=True)
-            
-            # The transparent Streamlit button covering it. 
-            # Note: We enforce type="secondary" here because our CSS hack strictly hides ALL secondary buttons inside columns.
             if st.button(" ", key=f"btn_{pt}", type="secondary", use_container_width=True):
                 st.session_state["selected_ptype"] = pt
                 st.rerun()
 
-    # Numerical Inputs (Transactions Removed from UI)
+    # Numerical Inputs
     col_in1, col_in2 = st.columns(2)
     with col_in1:
         field_label("Tenure")
-        tenure = st.selectbox("Tenure", sorted(data["Tenure"].unique()), key="pred_tenure", label_visibility="collapsed")
+        # Direct clickable horizontal radio pills for Tenure
+        tenure = st.radio("Tenure", sorted(data["Tenure"].unique()), key="pred_tenure", label_visibility="collapsed", horizontal=True)
     with col_in2:
         field_label("Median price per sq ft (RM)")
         psf = st.number_input("PSF", min_value=1, step=10, value=int(round(data["Median_PSF"].median())), key="pred_psf", label_visibility="collapsed")
@@ -452,8 +438,6 @@ def prediction_page(data, results):
         from area_preprocessing import create_area_key
         area_key = create_area_key(current_state, current_area)
         ptype = st.session_state["selected_ptype"]
-        
-        # Transactions injected silently 
         transactions = int(round(data["Transactions"].median()))
         
         features = pd.DataFrame([{
