@@ -55,6 +55,33 @@ STATE_COORDS = {
     "Putrajaya": [2.9264, 101.6964], "Labuan": [5.2831, 115.2308]
 }
 
+
+# Official Malaysia administrative-district coverage.
+# DOSM uses 16 state-level units and 160 administrative districts in total.
+# Perlis and the three Federal Territories are represented by the state/territory
+# itself because they are not subdivided in the DOSM district dataset.
+OFFICIAL_DISTRICTS = {
+    "Johor": ["Batu Pahat", "Johor Bahru", "Kluang", "Kota Tinggi", "Kulai", "Mersing", "Muar", "Pontian", "Segamat", "Tangkak"],
+    "Kedah": ["Baling", "Bandar Baharu", "Kota Setar", "Kuala Muda", "Kubang Pasu", "Kulim", "Langkawi", "Padang Terap", "Pendang", "Pokok Sena", "Sik", "Yan"],
+    "Kelantan": ["Bachok", "Kota Bharu", "Machang", "Pasir Mas", "Pasir Puteh", "Tanah Merah", "Tumpat", "Gua Musang", "Kuala Krai", "Jeli", "Kecil Lojing"],
+    "Melaka": ["Alor Gajah", "Jasin", "Melaka Tengah"],
+    "Negeri Sembilan": ["Jelebu", "Jempol", "Kuala Pilah", "Port Dickson", "Rembau", "Seremban", "Tampin"],
+    "Pahang": ["Bentong", "Bera", "Cameron Highlands", "Jerantut", "Kuantan", "Lipis", "Maran", "Pekan", "Raub", "Rompin", "Temerloh"],
+    "Penang": ["Barat Daya", "Seberang Perai Selatan", "Seberang Perai Tengah", "Seberang Perai Utara", "Timur Laut"],
+    "Perak": ["Batang Padang", "Manjung", "Kinta", "Kerian", "Kuala Kangsar", "Larut Dan Matang", "Hilir Perak", "Hulu Perak", "Perak Tengah", "Kampar", "Muallim", "Bagan Datuk", "Selama"],
+    "Perlis": ["Perlis"],
+    "Sabah": ["Tawau", "Lahad Datu", "Semporna", "Sandakan", "Kinabatangan", "Beluran", "Kota Kinabalu", "Ranau", "Kota Belud", "Tuaran", "Penampang", "Papar", "Kudat", "Kota Marudu", "Pitas", "Beaufort", "Kuala Penyu", "Sipitang", "Tenom", "Nabawan", "Keningau", "Tambunan", "Kunak", "Tongod", "Putatan", "Telupid", "Kalabakan"],
+    "Sarawak": ["Kuching", "Bau", "Lundu", "Samarahan", "Serian", "Simunjan", "Sri Aman", "Lubok Antu", "Betong", "Saratok", "Sarikei", "Maradong", "Daro", "Julau", "Sibu", "Dalat", "Mukah", "Kanowit", "Bintulu", "Tatau", "Kapit", "Song", "Belaga", "Miri", "Marudi", "Limbang", "Lawas", "Matu", "Asajaya", "Pakan", "Selangau", "Tebedu", "Pusa", "Kabong", "Tanjung Manis", "Sebauh", "Bukit Mabong", "Subis", "Beluru", "Telang Usan"],
+    "Selangor": ["Gombak", "Hulu Langat", "Hulu Selangor", "Klang", "Kuala Langat", "Kuala Selangor", "Petaling", "Sabak Bernam", "Sepang"],
+    "Terengganu": ["Besut", "Dungun", "Hulu Terengganu", "Kemaman", "Kuala Nerus", "Kuala Terengganu", "Marang", "Setiu"],
+    "Kuala Lumpur": ["Kuala Lumpur"],
+    "Labuan": ["Labuan"],
+    "Putrajaya": ["Putrajaya"],
+}
+
+assert len(OFFICIAL_DISTRICTS) == 16
+assert sum(len(v) for v in OFFICIAL_DISTRICTS.values()) == 160
+
 # Massively expanded pre-calculated real-world coordinates for exact map pins
 HARDCODED_AREAS = {
     "Selangor": {
@@ -161,32 +188,8 @@ header[data-testid="stHeader"] { background:transparent!important; }
 /* Custom Tenure Radio Pills layout */
 div[role="radiogroup"] { gap: 15px; }
 
-/* Property Type: keep the original invisible Streamlit button logic,
-   but overlay it on the SVG card without creating a separate empty box. */
-div[data-testid="column"]:has(.ptype-card) {
-    position: relative !important;
-}
-div[data-testid="column"]:has(.ptype-card) div[data-testid="stButton"] {
-    position: absolute !important;
-    inset: 0 !important;
-    z-index: 5 !important;
-    margin: 0 !important;
-    padding: 0 !important;
-}
-div[data-testid="column"]:has(.ptype-card) div[data-testid="stButton"] > button {
-    position: absolute !important;
-    inset: 0 !important;
-    width: 100% !important;
-    height: 105px !important;
-    min-height: 105px !important;
-    opacity: 0 !important;
-    background: transparent !important;
-    border: none !important;
-    box-shadow: none !important;
-    padding: 0 !important;
-    margin: 0 !important;
-    cursor: pointer !important;
-}
+/* Property Type cards now use real Streamlit buttons directly.
+   No transparent/empty overlay button is used. */
 </style>
 """, unsafe_allow_html=True)
 
@@ -211,20 +214,25 @@ def get_area_coords(area_name: str, state_name: str):
     if state_name in HARDCODED_AREAS and area_name in HARDCODED_AREAS[state_name]:
         return HARDCODED_AREAS[state_name][area_name]
     
+    # For official districts/localities that are not hardcoded, ask OpenStreetMap
+    # Nominatim for the real location. Never invent a fake hash-offset coordinate.
     if HAS_GEOPY:
         try:
-            geolocator = Nominatim(user_agent="mh_estimator", timeout=2)
-            loc = geolocator.geocode(f"{area_name}, {state_name}, Malaysia")
-            if loc: 
-                time.sleep(0.5) 
-                return [loc.latitude, loc.longitude]
-        except: pass
-            
-    base_coords = STATE_COORDS.get(state_name, [4.2105, 108.9758])
-    hash_val = int(hashlib.md5(area_name.encode('utf-8')).hexdigest(), 16)
-    lat_offset = ((hash_val % 100) / 100.0 - 0.5) * 0.4
-    lon_offset = (((hash_val // 100) % 100) / 100.0 - 0.5) * 0.4
-    return [base_coords[0] + lat_offset, base_coords[1] + lon_offset]
+            geolocator = Nominatim(user_agent="mh_estimator", timeout=4)
+            for query in (
+                f"{area_name} District, {state_name}, Malaysia",
+                f"{area_name}, {state_name}, Malaysia",
+            ):
+                loc = geolocator.geocode(query, country_codes="my")
+                if loc:
+                    return [loc.latitude, loc.longitude]
+        except Exception:
+            pass
+
+    # Perlis and Federal Territories have no lower DOSM administrative district.
+    if area_name == state_name:
+        return STATE_COORDS.get(state_name)
+    return None
 
 def field_label(text: str) -> None:
     st.markdown(f'<div class="mh-label">{text}</div>', unsafe_allow_html=True)
@@ -305,6 +313,7 @@ def analyze_address(data, available_states):
         valid_areas = set([display_name(a) for a in data[data["State"] == matched_state]["Area_Clean"].dropna().unique()])
         if matched_state in HARDCODED_AREAS:
             valid_areas.update(HARDCODED_AREAS[matched_state].keys())
+        valid_areas.update(OFFICIAL_DISTRICTS.get(matched_state, []))
             
         for a in sorted(valid_areas, key=len, reverse=True):
             if a.lower() in addr:
@@ -329,7 +338,7 @@ def analyze_address(data, available_states):
 # ---------------------------------------------------------------------------
 def prediction_page(data, results):
     recommended = results.iloc[0]["Model"]
-    available_states = sorted(data["State"].unique())
+    available_states = sorted(STATE_COORDS.keys())
     ptypes = sorted(data["Primary_Type"].unique())
 
     if "selected_state" not in st.session_state: st.session_state["selected_state"] = None
@@ -363,11 +372,11 @@ def prediction_page(data, results):
                 
     else:
         all_state_areas = data[data["State"] == current_state]["Area_Clean"].dropna().unique()
-        # Keep the original map-selection flow, but only make areas that actually
-        # belong to this State in the cleaned dataset selectable. HARDCODED_AREAS
-        # is used only by get_area_coords() to improve pin accuracy.
+        # Keep every housing-dataset locality for model compatibility, then add
+        # the complete official DOSM administrative districts for nationwide coverage.
         areas_to_plot = set([display_name(a) for a in all_state_areas])
-        
+        areas_to_plot.update(OFFICIAL_DISTRICTS.get(current_state, []))
+
         if current_area:
             areas_to_plot.add(current_area)
             
@@ -412,15 +421,26 @@ def prediction_page(data, results):
     st.markdown('<hr class="mh-rule">', unsafe_allow_html=True)
     st.markdown("<h3 style='margin-top:0;'>🏡 2. Property Details</h3>", unsafe_allow_html=True)
 
-    # ---------------- FLAWLESS SVG BUTTON OVERLAY ----------------
+    # ---------------- DIRECT-CLICK PROPERTY TYPE CARDS ----------------
+    # Real buttons: no blank/transparent overlay. Selection logic is unchanged.
     field_label("Select Property Type")
+    ptype_icons = {
+        "Bungalow": "🏠", "Semi D": "🏘️", "Cluster House": "🏡",
+        "Terrace House": "🏘️", "Town House": "🏠", "Condominium": "🏢",
+        "Service Residence": "🏙️", "Apartment": "🏢", "Flat": "🏬",
+    }
     svg_cols = st.columns(len(ptypes))
-    
+
     for i, pt in enumerate(ptypes):
         with svg_cols[i]:
             is_sel = (pt == st.session_state["selected_ptype"])
-            st.markdown(get_colored_svg(pt, is_sel), unsafe_allow_html=True)
-            if st.button(" ", key=f"btn_{pt}", type="secondary", use_container_width=True):
+            icon = ptype_icons.get(pt, "🏠")
+            if st.button(
+                f"{icon}  {pt}",
+                key=f"btn_{pt}",
+                type="primary" if is_sel else "secondary",
+                use_container_width=True,
+            ):
                 st.session_state["selected_ptype"] = pt
                 st.rerun()
 
