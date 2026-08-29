@@ -893,6 +893,25 @@ div[data-testid="stNumberInputContainer"], div[data-baseweb="input"] {
 }
 button[kind="secondary"] { border-radius:14px!important; }
 
+
+/* ---------- MAP LEGEND ---------- */
+.mh-map-legend {
+    display:flex;
+    align-items:center;
+    flex-wrap:wrap;
+    gap:10px 18px;
+    margin-top:10px;
+    color:#667085;
+    font-size:.82rem;
+}
+.mh-map-legend .legend-title { font-weight:700; color:#475467; margin-right:2px; }
+.mh-map-legend .legend-item { display:inline-flex; align-items:center; gap:7px; white-space:nowrap; }
+.mh-map-legend .legend-dot { width:12px; height:12px; border-radius:50%; display:inline-block; box-sizing:border-box; }
+.mh-map-legend .state-dot { background:#2F6FED; border:2px solid #15243A; }
+.mh-map-legend .verified-dot { background:#F59E0B; border:2px solid #C47A10; }
+.mh-map-legend .approx-dot { background:#D0D5DD; border:2px solid #98A2B3; }
+.mh-map-legend .selected-dot { background:#10B981; border:2px solid #18875D; }
+
 /* ---------- PREDICTION RESULT ---------- */
 .mh-result {
     position:relative;
@@ -1278,8 +1297,12 @@ def prediction_page(data, results):
     map_event = st_folium(m, height=470, use_container_width=True, key="malaysia_map")
     st.markdown("</div>", unsafe_allow_html=True)
     st.markdown(
-        "<div style='font-size:.82rem;color:#667085;margin-top:6px;'>"
-        "<b>Map pins:</b> 🟢 State &nbsp; 🟠 Verified area &nbsp; ⚪ Approximate position &nbsp; ✅ Selected area"
+        "<div class='mh-map-legend'>"
+        "<span class='legend-title'>Map pins:</span>"
+        "<span class='legend-item'><span class='legend-dot state-dot'></span>State</span>"
+        "<span class='legend-item'><span class='legend-dot verified-dot'></span>Verified area</span>"
+        "<span class='legend-item'><span class='legend-dot approx-dot'></span>Approximate position</span>"
+        "<span class='legend-item'><span class='legend-dot selected-dot'></span>Selected area</span>"
         "</div>",
         unsafe_allow_html=True,
     )
