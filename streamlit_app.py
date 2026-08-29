@@ -726,7 +726,8 @@ footer { visibility:hidden; }
     color:#FFFFFF;
 }
 .stTabs [role="tab"] {
-    height:44px!important;
+    align-self:stretch!important;
+    height:auto!important;
     padding:0 24px!important;
     border-radius:12px!important;
     color:#C5D0E2!important;
@@ -735,6 +736,7 @@ footer { visibility:hidden; }
     background:transparent!important;
     border:1px solid transparent!important;
     transition:all .16s ease!important;
+    cursor:pointer!important;
 }
 .stTabs [role="tab"]:hover {
     color:#FFFFFF!important;
@@ -747,6 +749,7 @@ footer { visibility:hidden; }
     box-shadow:0 6px 14px rgba(8,18,36,.15)!important;
 }
 .stTabs [data-baseweb="tab-highlight"], .stTabs [data-baseweb="tab-border"] { display:none!important; }
+.stTabs [data-baseweb="tab-panel"] { min-height:60vh; }
 
 /* ---------- SECTION HEADERS ---------- */
 .mh-section-head {
@@ -1580,68 +1583,27 @@ def insights_page(data):
     view = st.radio("View", ["Market Explorer", "Visual Insights"], horizontal=True, label_visibility="collapsed")
     if view == "Market Explorer":
         st.markdown("#### Historical 2025 dataset exploration")
-
-        st.markdown("<div class='mh-panel'>", unsafe_allow_html=True)
-        st.markdown("<div class='mh-search-row'>", unsafe_allow_html=True)
-        search_col, reset_col = st.columns([5, 1.2])
-        with search_col:
-            area_search = st.text_input(
-                "Search area", placeholder="🔍 Search for an area name…", label_visibility="collapsed", key="explorer_search"
-            )
-        with reset_col:
-            reset_filters = st.button("Reset filters", use_container_width=True, key="explorer_reset")
-        st.markdown("</div>", unsafe_allow_html=True)
-
-        if reset_filters:
-            for k in ("explorer_state", "explorer_area", "explorer_ptype", "explorer_tenure", "explorer_search"):
-                st.session_state.pop(k, None)
-            st.rerun()
-
         a, b, c, d = st.columns(4)
-        state = a.selectbox("State", ["All"] + sorted(data["State"].unique()), key="explorer_state")
-        area_options = ["All"] + sorted(data["Area_Clean"].unique())
-        area = b.selectbox("Area", area_options, key="explorer_area")
-        ptype = c.selectbox("Property type", ["All"] + sorted(data["Primary_Type"].unique()), key="explorer_ptype")
-        tenure = d.selectbox("Tenure", ["All"] + sorted(data["Tenure"].unique()), key="explorer_tenure")
-        st.markdown("</div>", unsafe_allow_html=True)
+        state = a.selectbox("State", ["All"] + sorted(data["State"].unique()))
+        area = b.selectbox("Area", ["All"] + sorted(data["Area_Clean"].unique()))
+        ptype = c.selectbox("Property type", ["All"] + sorted(data["Primary_Type"].unique()))
+        tenure = d.selectbox("Tenure", ["All"] + sorted(data["Tenure"].unique()))
 
         subset = data.copy()
         if state != "All": subset = subset[subset["State"] == state]
         if area != "All": subset = subset[subset["Area_Clean"] == area]
         if ptype != "All": subset = subset[subset["Primary_Type"] == ptype]
         if tenure != "All": subset = subset[subset["Tenure"] == tenure]
-        if area_search:
-            subset = subset[subset["Area_Clean"].str.contains(area_search, case=False, na=False)]
 
         if len(subset) == 0:
             st.warning("No historical records match these filters.")
         else:
-            metric_row_html = (
-                f'<div class="mh-metric-row">'
-                f'<div class="mh-metric"><div class="k">Records</div><div class="v">{len(subset):,}</div></div>'
-                f'<div class="mh-metric"><div class="k">Median price</div><div class="v">RM {subset["Median_Price"].median()/1000:,.0f}K</div></div>'
-                f'<div class="mh-metric"><div class="k">Median PSF</div><div class="v">RM {subset["Median_PSF"].median():,.0f}</div></div>'
-                f'<div class="mh-metric"><div class="k">Median transactions</div><div class="v">{subset["Transactions"].median():,.0f}</div></div>'
-                f'</div>'
-            )
-            st.markdown(metric_row_html, unsafe_allow_html=True)
-
-            st.markdown('<br>', unsafe_allow_html=True)
-            chart_tab, table_tab = st.tabs(["📊 Chart view", "📋 Table view"])
-            with chart_tab:
-                group_dim = "Area_Clean" if area == "All" else "Primary_Type"
-                top_n = (
-                    subset.groupby(group_dim)["Median_Price"]
-                    .median()
-                    .sort_values(ascending=False)
-                    .head(10)
-                    .reset_index()
-                )
-                chart_display_placeholder = st.empty()
-                st.bar_chart(top_n.set_index(group_dim)["Median_Price"], use_container_width=True)
-                st.caption(f"Top {min(10, len(top_n))} by median price, grouped by {('area' if group_dim=='Area_Clean' else 'property type')}.")
-            with table_tab:
-                st.dataframe(subset, use_container_width=True, hide_index=True)
+            m1, m2, m3, m4 = st.columns(4)
+            m1.metric("Records", f"{len(subset):,}")
+            m2.metric("Median price", f"RM {subset['Median_Price'].median()/1000:,.0f}K")
+            m3.metric("Median PSF", f"RM {subset['Median_PSF'].median():,.0f}")
+            m4.metric("Median transactions", f"{subset['Transactions'].median():,.0f}")
+            st.dataframe(subset, use_container_width=True, hide_index=True)
     else:
         group = st.selectbox("Insight category", list(FIGURE_GROUPS))
         for filename, caption in FIGURE_GROUPS[group]:
