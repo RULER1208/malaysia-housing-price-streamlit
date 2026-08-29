@@ -174,16 +174,18 @@ def get_area_coords(area_name: str, state_name: str):
     if area_name in HARDCODED_AREAS:
         return HARDCODED_AREAS[area_name]
     
+    # Live Geopy fetch for missing areas 
     if HAS_GEOPY:
         try:
             geolocator = Nominatim(user_agent="mh_estimator", timeout=2)
             loc = geolocator.geocode(f"{area_name}, {state_name}, Malaysia")
             if loc: 
-                time.sleep(1)
+                time.sleep(1) # Prevent Rate Limiting
                 return [loc.latitude, loc.longitude]
         except:
             pass
             
+    # Deterministic procedural scatter fallback (prevents markers from stacking on top of each other)
     base_coords = STATE_COORDS.get(state_name, [4.2105, 108.9758])
     hash_val = int(hashlib.md5(area_name.encode('utf-8')).hexdigest(), 16)
     lat_offset = ((hash_val % 1000) / 1000.0 - 0.5) * 0.7
@@ -309,8 +311,9 @@ def prediction_page(data, results):
                     popup=f"STATE:{st_name}"
                 ).add_to(m)
                 
-    # Map Mode 2: State Area Drill-Down
+    # Map Mode 2: State Area Drill-Down (Strictly CSV Data Only)
     else:
+        # Guarantee 100% accuracy: Only fetch areas mapped to this state in the dataset
         all_state_areas = data[data["State"] == current_state]["Area_Clean"].dropna().unique()
         marker_cluster = MarkerCluster(name="Areas").add_to(m)
         
@@ -352,9 +355,7 @@ def prediction_page(data, results):
     with col_loc1:
         st.markdown(f"**State:** {current_state or 'Not Selected'} &nbsp; | &nbsp; **Area:** {current_area or 'Not Selected'}")
     with col_loc2:
-        if st.button("Reset Location", use_container_width=True):
-            reset_location_state()
-            st.rerun()
+        st.button("Reset Location", use_container_width=True, on_click=reset_location_state)
 
     st.markdown('<hr class="mh-rule">', unsafe_allow_html=True)
     st.markdown("<h3 style='margin-top:0;'>🏡 2. Property Details</h3>", unsafe_allow_html=True)
@@ -366,7 +367,7 @@ def prediction_page(data, results):
         with svg_cols[i]:
             is_sel = (pt == st.session_state["selected_ptype"])
             st.markdown(ptype_svg_card(pt, is_sel), unsafe_allow_html=True)
-            if st.button("Select", key=f"btn_{pt}", use_container_width=True):
+            if st.button(f"Select", key=f"btn_{pt}", use_container_width=True):
                 st.session_state["selected_ptype"] = pt
                 st.rerun()
 
@@ -430,7 +431,7 @@ def prediction_page(data, results):
 FIGURE_GROUPS = {
     "Data quality": [("fig01_raw_target_distribution.png", "House prices are heavily skewed."), ("fig10_outlier_before_after.png", "Extreme values removed by outlier cleaning.")],
     "Area quality and coverage": [("fig14_top20_areas.png", "The 20 areas with the most records in the dataset."), ("fig16_area_price_distribution.png", "How median price varies across different areas.")],
-    "Location and property": [("fig18_state_counts_clean.png", "Number of records per state after cleaning."), ("fig19_state_price_distribution.png", "Median price differs a lot from state to state."), ("fig20_property_type_price.png", "Bungalows and semi-detached homes cost more.")],
+    "Location and property": [("fig18_state_counts_clean.png", "Number of records per state after cleaning."),("fig19_state_price_distribution.png", "Median price differs a lot from state to state."), ("fig20_property_type_price.png", "Bungalows and semi-detached homes cost more.")],
 }
 
 def insights_page(data):
