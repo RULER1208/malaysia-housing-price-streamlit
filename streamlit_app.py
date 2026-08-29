@@ -37,7 +37,6 @@ st.set_page_config(
 # ---------------------------------------------------------------------------
 APP_DIR = Path(__file__).resolve().parent
 DATA_PATH = APP_DIR / "malaysia_house_price_cleaned_with_area.csv"
-MAP_DATA_PATH = APP_DIR / "malaysia_house_price_data_2025.csv"
 RESULTS_PATH = APP_DIR / "model_results.csv"
 MODELS_DIR = APP_DIR / "models"
 FIGURES_DIR = APP_DIR / "figures"
@@ -304,6 +303,298 @@ SPECIAL_DISPLAY_AREAS = {'Putrajaya': ['Precinct 1',
             'Tanjung Aru']}
 
 SPECIAL_AREA_LABELS = {'Putrajaya': 'Precinct', 'Perlis': 'Mukim', 'Kuala Lumpur': 'Strategic zone', 'Labuan': 'Village area'}
+
+
+# Dataset validation snapshot (from malaysia_house_price_data_2025.csv).
+# This is NOT loaded at runtime and does not control the UI design. It is only
+# merged into the nationwide map list so every State -> Area pair found in the
+# supplied dataset is guaranteed to remain available on the map.
+VALIDATED_DATASET_AREAS = {'Johor': ['Bakri',
+           'Batu Pahat',
+           'Gelang Patah',
+           'Gerisek',
+           'Iskandar Puteri (Nusajaya)',
+           'Jementah',
+           'Johor Bahru',
+           'Kluang',
+           'Kota Tinggi',
+           'Kulai',
+           'Labis',
+           'Masai',
+           'Mersing',
+           'Muar',
+           'Pagoh',
+           'Paloh',
+           'Pasir Gudang',
+           'Pengerang',
+           'Perling',
+           'Permas Jaya',
+           'Pontian',
+           'Segamat',
+           'Senai',
+           'Senggarang',
+           'Simpang Rengam',
+           'Skudai',
+           'Tampoi',
+           'Tangkak',
+           'Tebrau',
+           'Ulu Tiram',
+           'Yong Peng'],
+ 'Kedah': ['Alor Setar',
+           'Bandar Baharu',
+           'Bedong',
+           'Gurun',
+           'Jitra',
+           'Kota Sarang Semut',
+           'Kuah',
+           'Kuala Kedah',
+           'Kuala Ketil',
+           'Kulim',
+           'Lunas',
+           'Merbok',
+           'Padang Serai',
+           'Pokok Sena',
+           'Sungai Lalang',
+           'Sungai Petani',
+           'Teloi Kiri'],
+ 'Kelantan': ['Cherang Ruku', 'Machang', 'Padang Enggang'],
+ 'Kuala Lumpur': ['Ampang',
+                  'Ampang Hilir',
+                  'Bandar Menjalara',
+                  'Bandar Tasik Selatan',
+                  'Bangsar',
+                  'Batu Caves',
+                  'Brickfields',
+                  'Bukit Bintang',
+                  'Bukit Jalil',
+                  'Cheras',
+                  'City Centre',
+                  'Damansara Heights',
+                  'Desa ParkCity',
+                  'Desa Petaling',
+                  'Dutamas',
+                  'Jalan Ipoh',
+                  'Jalan Klang Lama (Old Klang Road)',
+                  'Jalan Kuching',
+                  'Jinjang',
+                  'KL City',
+                  'KL Sentral',
+                  'KLCC',
+                  'Kampung Kerinchi (Bangsar South)',
+                  'Kepong',
+                  'Kuchai Lama',
+                  'Mont Kiara',
+                  'Pantai',
+                  'Salak Selatan',
+                  'Segambut',
+                  'Sentul',
+                  'Setapak',
+                  'Setiawangsa',
+                  'Sri Hartamas',
+                  'Sri Petaling',
+                  'Sungai Besi',
+                  'Taman Desa',
+                  'Taman Tun Dr Ismail',
+                  'Wangsa Maju'],
+ 'Labuan': ['Labuan'],
+ 'Melaka': ['Alor Gajah',
+            'Ayer Molek',
+            'Bachang',
+            'Balai Panjang',
+            'Batu Berendam',
+            'Bemban',
+            'Bertam',
+            'Bukit Baru',
+            'Bukit Katil',
+            'Bukit Rambai',
+            'Cheng',
+            'Durian Tunggal',
+            'Duyong',
+            'Jasin',
+            'Klebang',
+            'Krubong',
+            'Kuala Sungai Baru',
+            'Masjid Tanah',
+            'Melaka City',
+            'Merlimau',
+            'Paya Rumput',
+            'Sungai Rambai',
+            'Sungai Udang',
+            'Sungei Baru Tengah',
+            'Sungei Petai',
+            'Tanjong Kling',
+            'Tanjong Minyak',
+            'Umbai'],
+ 'Negeri Sembilan': ['Ampangan',
+                     'Bahau',
+                     'Bandar Enstek',
+                     'Bandar Sri Sendayan',
+                     'Bukit Kepayang',
+                     'Gemas',
+                     'Jimah',
+                     'Juasseh',
+                     'Kuala Pilah',
+                     'Labu',
+                     'Lenggeng',
+                     'Linggi',
+                     'Lukut',
+                     'Mantin',
+                     'Nilai',
+                     'Paroi',
+                     'Pasir Panjang',
+                     'Port Dickson',
+                     'Rantau',
+                     'Rasah',
+                     'Rembau',
+                     'Senawang',
+                     'Seremban',
+                     'Seremban 2',
+                     'Sikamat',
+                     'Simpang Pertang',
+                     'Tampin',
+                     'Telok Kemang'],
+ 'Pahang': ['Bentong',
+            'Chenor',
+            'Genting Highlands',
+            'Hulu Lepar',
+            'Kuala Lipis',
+            'Kuantan',
+            'Mentakab',
+            'Pekan',
+            'Raub',
+            'Rompin',
+            'Sungai Karang',
+            'Teras',
+            'Triang'],
+ 'Penang': ['Ayer Itam',
+            'Balik Pulau',
+            'Batu Ferringhi',
+            'Batu Kawan',
+            'Bayan Baru',
+            'Bayan Lepas',
+            'Bukit Jambul',
+            'Bukit Mertajam',
+            'Bukit Minyak',
+            'Butterworth',
+            'Gelugor',
+            'Georgetown',
+            'Gurney',
+            'Jelutong',
+            'Juru',
+            'Kepala Batas',
+            'Kubang Semang',
+            'Nibong Tebal',
+            'Penaga',
+            'Perai',
+            'Permatang Pauh',
+            'Relau',
+            'Seberang Jaya',
+            'Simpang Ampat',
+            'Sungai Ara',
+            'Sungai Bakap',
+            'Sungai Dua',
+            'Sungai Jawi',
+            'Tanjong Tokong',
+            'Tanjung Bungah',
+            'Tasek Gelugor',
+            'Teluk Kumbar'],
+ 'Perak': ['Bagan Serai',
+           'Batu Gajah',
+           'Batu Kurau',
+           'Bidor',
+           'Chemor',
+           'Chenderiang',
+           'Gerik',
+           'Gopeng',
+           'Hutan Melintang',
+           'Ipoh',
+           'Kampar',
+           'Kamunting',
+           'Kuala Kangsar',
+           'Lahat',
+           'Lumut',
+           'Menglembu',
+           'Padang Rengas',
+           'Parit Buntar',
+           'Pengkalan Hulu',
+           'Pusing',
+           'Seri Iskandar',
+           'Seri Manjong',
+           'Simpang',
+           'Simpang Pulai',
+           'Sitiawan',
+           'Sungai Siput',
+           'Taiping',
+           'Tambun',
+           'Tanjong Tualang',
+           'Tapah',
+           'Teluk Intan',
+           'Tronoh',
+           'Ulu Bernam'],
+ 'Perlis': ['Arau'],
+ 'Putrajaya': ['Putrajaya'],
+ 'Sabah': ['Kota Kinabalu', 'Kota Marudu', 'Lahad Datu', 'Papar', 'Penampang', 'Sandakan', 'Tawau', 'Tuaran'],
+ 'Sarawak': ['Bintulu', 'Kota Samarahan', 'Kuching', 'Limbang', 'Miri', 'Sibu', 'Sri Aman'],
+ 'Selangor': ['Ampang',
+              'Ara Damansara',
+              'Balakong',
+              'Bandar Kinrara',
+              'Bandar Puncak Alam',
+              'Bandar Sri Damansara',
+              'Bandar Sungai Long',
+              'Bandar Sunway',
+              'Bandar Utama',
+              'Bangi',
+              'Banting',
+              'Batang Kali',
+              'Batu Arang',
+              'Batu Caves',
+              'Beranang',
+              'Cheras',
+              'Cyberjaya',
+              'Damansara Damai',
+              'Damansara Perdana',
+              'Dengkil',
+              'Glenmarie',
+              'Hulu Langat',
+              'Hulu Selangor',
+              'Ijok',
+              'Jenjarom',
+              'Kajang',
+              'Kapar',
+              'Kelana Jaya',
+              'Kepong',
+              'Klang',
+              'Kota Damansara',
+              'Kuala Kubu Baru',
+              'Kuala Selangor',
+              'Mutiara Damansara',
+              'Pandamaran',
+              'Petaling Jaya',
+              'Port Klang',
+              'Puchong',
+              'Rasa',
+              'Rawang',
+              'Sabak Bernam',
+              'Saujana',
+              'Saujana Utama',
+              'Selayang',
+              'Semenyih',
+              'Sepang',
+              'Serendah',
+              'Seri Kembangan',
+              'Setia Alam',
+              'Shah Alam',
+              'Subang Jaya',
+              'Sungai Besar',
+              'Sungai Buloh',
+              'Tanjong Duabelas',
+              'Telok Panglima Garang',
+              'Tropicana',
+              'Ulu Klang',
+              'Ulu Langat'],
+ 'Terengganu': ['Besut', 'Dungun', 'Hulu Terengganu', 'Kemaman', 'Kerteh', 'Kijal', 'Kuala Ibai', 'Kuala Terengganu']}
+
 
 # Massively expanded pre-calculated real-world coordinates for exact map pins
 HARDCODED_AREAS = {
@@ -718,14 +1009,6 @@ def load_data():
     return pd.read_csv(DATA_PATH)
 
 @st.cache_data(show_spinner=False)
-def load_map_data():
-    raw = pd.read_csv(MAP_DATA_PATH, usecols=["State", "Area"])
-    raw["State"] = raw["State"].astype("string").str.strip().str.replace(r"\s+", " ", regex=True)
-    raw["Area"] = raw["Area"].astype("string").str.strip().str.replace(r"\s+", " ", regex=True)
-    raw = raw.dropna(subset=["State", "Area"]).drop_duplicates(["State", "Area"])
-    return raw.reset_index(drop=True)
-
-@st.cache_data(show_spinner=False)
 def load_results():
     return pd.read_csv(RESULTS_PATH).sort_values(["Group_CV_RMSE_mean"]).reset_index(drop=True)
 
@@ -790,23 +1073,20 @@ def get_property_label(ptype: str) -> str:
     return f"{get_property_icon(ptype)}\n{ptype}"
 
 @st.cache_data(show_spinner=False)
-def get_dataset_areas_for_state(map_data: pd.DataFrame, state_name: str):
-    return sorted(
-        map_data.loc[map_data["State"] == state_name, "Area"]
-        .dropna()
-        .astype(str)
-        .unique()
-    )
+def get_dataset_areas_for_state(state_name: str):
+    return list(VALIDATED_DATASET_AREAS.get(state_name, []))
 
 @st.cache_data(show_spinner=False)
-def get_areas_for_state(map_data: pd.DataFrame, state_name: str):
-    areas = set(get_dataset_areas_for_state(map_data, state_name))
-    areas.update(OFFICIAL_DISTRICTS.get(state_name, []))
+def get_areas_for_state(state_name: str):
+    # Static nationwide list: official districts + official/local subdivisions
+    # + any State -> Area pairs found in the supplied housing dataset.
+    areas = set(OFFICIAL_DISTRICTS.get(state_name, []))
     areas.update(SPECIAL_DISPLAY_AREAS.get(state_name, []))
+    areas.update(VALIDATED_DATASET_AREAS.get(state_name, []))
     return sorted(areas)
 
-def get_area_source(map_data: pd.DataFrame, state_name: str, area_name: str) -> str:
-    dataset_areas = set(get_dataset_areas_for_state(map_data, state_name))
+def get_area_source(state_name: str, area_name: str) -> str:
+    dataset_areas = set(VALIDATED_DATASET_AREAS.get(state_name, []))
     in_dataset = area_name in dataset_areas
     in_districts = area_name in set(OFFICIAL_DISTRICTS.get(state_name, []))
     in_special = area_name in set(SPECIAL_DISPLAY_AREAS.get(state_name, []))
@@ -821,22 +1101,28 @@ def get_area_source(map_data: pd.DataFrame, state_name: str, area_name: str) -> 
         return SPECIAL_AREA_LABELS.get(state_name, "Official local area")
     return "Malaysia map area"
 
-def is_dataset_area(map_data: pd.DataFrame, state_name: str, area_name: str) -> bool:
-    return area_name in set(get_dataset_areas_for_state(map_data, state_name))
+def is_dataset_area(state_name: str, area_name: str) -> bool:
+    return area_name in set(VALIDATED_DATASET_AREAS.get(state_name, []))
 
 @st.cache_data(show_spinner=False)
-def map_coverage_summary(map_data: pd.DataFrame):
-    dataset_pairs = map_data[["State", "Area"]].drop_duplicates()
-    nationwide_pairs = []
-    for state_name in STATE_COORDS:
-        for area_name in get_areas_for_state(map_data, state_name):
-            nationwide_pairs.append((state_name, area_name))
+def map_coverage_summary():
+    dataset_pairs = {
+        (state_name, area_name)
+        for state_name, areas in VALIDATED_DATASET_AREAS.items()
+        for area_name in areas
+    }
+    nationwide_pairs = {
+        (state_name, area_name)
+        for state_name in STATE_COORDS
+        for area_name in get_areas_for_state(state_name)
+    }
     return {
         "states": sorted(STATE_COORDS),
         "state_count": len(STATE_COORDS),
-        "dataset_pairs": int(len(dataset_pairs)),
+        "dataset_pairs": len(dataset_pairs),
         "official_district_units": int(sum(len(v) for v in OFFICIAL_DISTRICTS.values())),
-        "nationwide_state_area_pairs": int(len(set(nationwide_pairs))),
+        "nationwide_state_area_pairs": len(nationwide_pairs),
+        "dataset_pairs_missing_from_map": len(dataset_pairs - nationwide_pairs),
     }
 
 # ---------------------------------------------------------------------------
@@ -849,7 +1135,7 @@ def reset_location_state():
     st.session_state["map_zoom"] = 6
     st.session_state["address_input"] = "" 
 
-def analyze_address(map_data, available_states):
+def analyze_address(available_states):
     addr = st.session_state.get("address_input", "").lower()
     if not addr: return
 
@@ -872,7 +1158,7 @@ def analyze_address(map_data, available_states):
                         matched_state = st_name
                         break
                 if raw_area and matched_state:
-                    valid_areas = get_areas_for_state(map_data, matched_state)
+                    valid_areas = get_areas_for_state(matched_state)
                     normalized = {clean_area_name(a): a for a in valid_areas}
                     matched_area = normalized.get(clean_area_name(raw_area))
         except: pass
@@ -884,7 +1170,7 @@ def analyze_address(map_data, available_states):
                 break
                 
     if matched_state and not matched_area:
-        valid_areas = get_areas_for_state(map_data, matched_state)
+        valid_areas = get_areas_for_state(matched_state)
         for a in sorted(valid_areas, key=len, reverse=True):
             if a.lower() in addr:
                 matched_area = a
@@ -906,7 +1192,7 @@ def analyze_address(map_data, available_states):
 # ---------------------------------------------------------------------------
 # PAGE 1 - PREDICTION INTERFACE
 # ---------------------------------------------------------------------------
-def prediction_page(data, results, map_data):
+def prediction_page(data, results):
     recommended = results.iloc[0]["Model"]
     available_states = sorted(STATE_COORDS.keys())
     ptypes = sorted(data["Primary_Type"].unique())
@@ -929,7 +1215,7 @@ def prediction_page(data, results, map_data):
 
     st.text_input("Enter your address or postcode to auto-detect location, or click the map below:", 
                   placeholder="e.g. 45400 or Sekinchan, Selangor",
-                  key="address_input", on_change=analyze_address, args=(map_data, available_states))
+                  key="address_input", on_change=analyze_address, args=(available_states,))
 
     map_center = st.session_state.get("map_center", [4.2105, 108.9758] if not current_state else STATE_COORDS.get(current_state, [4.2105, 108.9758]))
     map_zoom = st.session_state.get("map_zoom", 6 if not current_state else 9)
@@ -948,7 +1234,7 @@ def prediction_page(data, results, map_data):
                 
     else:
         # Nationwide coverage: dataset localities + official districts + special local subdivisions.
-        areas_to_plot = set(get_areas_for_state(map_data, current_state))
+        areas_to_plot = set(get_areas_for_state(current_state))
 
         if current_area:
             areas_to_plot.add(current_area)
@@ -959,7 +1245,7 @@ def prediction_page(data, results, map_data):
             coords, is_approx = get_area_map_coords(disp_area, current_state)
             if coords:
                 is_sel = (disp_area == current_area)
-                area_kind = get_area_source(map_data, current_state, disp_area)
+                area_kind = get_area_source(current_state, disp_area)
                 pin_note = "Approximate position · click to select" if is_approx else "Click to select"
                 folium.CircleMarker(
                     location=coords, radius=12 if is_sel else 8,
@@ -1066,7 +1352,7 @@ def prediction_page(data, results, map_data):
             prediction = float(model.predict(features)[0])
 
         metrics = results[results["Model"] == recommended].iloc[0]
-        dataset_supported = is_dataset_area(map_data, current_state, current_area)
+        dataset_supported = is_dataset_area(current_state, current_area)
         coverage_note = "" if dataset_supported else (
             '<div class="note">This location is part of the nationwide Malaysia map but is not directly present in the 2025 housing dataset. '
             'The model therefore uses its unseen / infrequent-area handling for this estimate.</div>'
@@ -1151,17 +1437,19 @@ def model_report_page(results):
 # MAIN
 # ---------------------------------------------------------------------------
 def main():
-    missing = [p.name for p in [DATA_PATH, MAP_DATA_PATH, RESULTS_PATH] if not p.exists()]
+    missing = [p.name for p in [DATA_PATH, RESULTS_PATH] if not p.exists()]
     if missing:
         st.error("Missing required files: " + ", ".join(missing)); st.stop()
-    data = load_data(); map_data = load_map_data(); results = load_results()
-    coverage = map_coverage_summary(map_data)
+    data = load_data(); results = load_results()
+    coverage = map_coverage_summary()
+    if coverage["dataset_pairs_missing_from_map"] != 0:
+        st.error("Internal map coverage check failed: one or more dataset State → Area pairs are missing."); st.stop()
     missing_state_coords = sorted(set(coverage["states"]) - set(STATE_COORDS))
     if missing_state_coords:
         st.error("Missing map coordinates for: " + ", ".join(missing_state_coords)); st.stop()
 
     pred, insights, report = st.tabs(["Price Prediction", "Market Insights", "Model Report"])
-    with pred: prediction_page(data, results, map_data)
+    with pred: prediction_page(data, results)
     with insights: insights_page(data)
     with report: model_report_page(results)
 
