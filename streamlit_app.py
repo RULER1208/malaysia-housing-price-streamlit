@@ -12,6 +12,7 @@ import pandas as pd
 import streamlit as st
 import folium
 from streamlit_folium import st_folium
+import random
 
 try:
     from geopy.geocoders import Nominatim
@@ -38,8 +39,6 @@ MODELS_DIR = APP_DIR / "models"
 FIGURES_DIR = APP_DIR / "figures"
 MODEL_FEATURES = ["State", "Area_Key", "Tenure", "Primary_Type", "Median_PSF", "Transactions"]
 
-NO_AREA = "— No Area Selected —"
-
 STATE_COORDS = {
     "Johor": [1.9344, 103.3587], "Kedah": [6.1184, 100.3685],
     "Kelantan": [5.3500, 102.0000], "Melaka": [2.2500, 102.2500],
@@ -49,6 +48,13 @@ STATE_COORDS = {
     "Sarawak": [2.5574, 113.0012], "Selangor": [3.0738, 101.5183],
     "Terengganu": [4.7500, 103.0000], "Kuala Lumpur": [3.1390, 101.6869],
     "Putrajaya": [2.9264, 101.6964], "Labuan": [5.2831, 115.2308]
+}
+
+HARDCODED_AREAS = {
+    "Sekinchan": [3.5053, 101.1036], "Petaling Jaya": [3.1073, 101.6067],
+    "Shah Alam": [3.0738, 101.5183], "Subang Jaya": [3.0471, 101.5832],
+    "Klang": [3.0449, 101.4456], "Skudai": [1.5333, 103.6667],
+    "Tebrau": [1.5833, 103.7500], "Georgetown": [5.4141, 100.3288]
 }
 
 st.markdown(r"""
@@ -120,28 +126,32 @@ def load_model(name):
 @st.cache_data(show_spinner=False)
 def get_area_coords(area_name: str, state_name: str):
     """Geocode an area specifically within a state to place map markers."""
-    if not HAS_GEOPY: return None
-    try:
-        geolocator = Nominatim(user_agent="mh_estimator", timeout=3)
-        loc = geolocator.geocode(f"{area_name}, {state_name}, Malaysia")
-        if loc: return [loc.latitude, loc.longitude]
-    except:
-        pass
-    return None
+    if area_name in HARDCODED_AREAS:
+        return HARDCODED_AREAS[area_name]
+        
+    if HAS_GEOPY:
+        try:
+            geolocator = Nominatim(user_agent="mh_estimator", timeout=1)
+            loc = geolocator.geocode(f"{area_name}, {state_name}, Malaysia")
+            if loc: return [loc.latitude, loc.longitude]
+        except:
+            pass
+            
+    # Fallback to a procedural scatter around the State Center so the UI doesn't break
+    base_coords = STATE_COORDS.get(state_name, [4.2105, 108.9758])
+    random.seed(area_name)
+    return [base_coords[0] + random.uniform(-0.3, 0.3), base_coords[1] + random.uniform(-0.3, 0.3)]
 
 def field_label(text: str) -> None:
     st.markdown(f'<div class="mh-label">{text}</div>', unsafe_allow_html=True)
 
 def ptype_svg_card(ptype: str, is_selected: bool) -> str:
-    """Returns an HTML string containing an SVG icon for the property type."""
     color = "#2F6FED" if is_selected else "#667085"
     bg = "#EEF4FF" if is_selected else "#F6F8FB"
     border = "2px solid #2F6FED" if is_selected else "1px solid #E2E7EF"
     
-    # Highrise SVG
     if ptype in ["Condominium", "Apartment", "Flat", "Service Residence"]:
         svg = f'''<svg width="34" height="34" viewBox="0 0 24 24" fill="{color}"><path d="M7 19h10V4H7v15zm2-13h2v2H9V6zm4 0h2v2h-2V6zm-4 3h2v2H9V9zm4 0h2v2h-2V9zm-4 3h2v2H9v-2zm4 0h2v2h-2v-2zm-4 3h2v2H9v-2zm4 0h2v2h-2v-2z"/></svg>'''
-    # Landed SVG
     else:
         svg = f'''<svg width="34" height="34" viewBox="0 0 24 24" fill="{color}"><path d="M12 3L2 12h3v8h6v-6h2v6h6v-8h3L12 3zm-1 9H9V9h2v3zm4 0h-2V9h2v3z"/></svg>'''
         
@@ -165,7 +175,7 @@ def known_areas_for_state(data: pd.DataFrame, state: str) -> list[str]:
     return sorted({display_name(a) for a in subset})
 
 def analyze_address(data, available_states):
-    """Fired when the user types an address. Detects State & Area, then geocodes."""
+    """Fired when user types address. Detects State & Area, updates map coordinates."""
     addr = st.session_state.get("address_input", "").lower()
     if not addr: return
 
@@ -181,20 +191,14 @@ def analyze_address(data, available_states):
         for a in sorted(areas, key=len, reverse=True):
             if a.lower() in addr:
                 st.session_state["selected_area"] = a
-                break
-
-    if HAS_GEOPY:
-        try:
-            geolocator = Nominatim(user_agent="mh_estimator", timeout=3)
-            location = geolocator.geocode(f"{addr}, Malaysia")
-            if location:
-                st.session_state["map_center"] = [location.latitude, location.longitude]
-                st.session_state["map_zoom"] = 13 
+                coords = get_area_coords(a, matched_state)
+                if coords:
+                    st.session_state["map_center"] = coords
+                    st.session_state["map_zoom"] = 12
                 return
-        except Exception:
-            pass 
-            
+
     if matched_state and matched_state in STATE_COORDS:
+        st.session_state["selected_area"] = None
         st.session_state["map_center"] = STATE_COORDS[matched_state]
         st.session_state["map_zoom"] = 8
 
@@ -210,7 +214,7 @@ def prediction_page(data, results):
     if "selected_state" not in st.session_state:
         st.session_state["selected_state"] = None
     if "selected_area" not in st.session_state:
-        st.session_state["selected_area"] = NO_AREA
+        st.session_state["selected_area"] = None
     if "selected_ptype" not in st.session_state:
         st.session_state["selected_ptype"] = ptypes[0]
 
@@ -219,40 +223,39 @@ def prediction_page(data, results):
     
     st.markdown("<h3 style='margin-top:0;'>📍 1. Location Selection</h3>", unsafe_allow_html=True)
     
-    # Address Input Parser
     st.text_input("Enter your address to auto-detect location, or click the map below:", 
-                  placeholder="e.g. Jalan Mewah, Kulai, Johor",
+                  placeholder="e.g. Sekinchan, Selangor",
                   key="address_input", on_change=analyze_address, args=(data, available_states))
 
-    # Dynamic Map Control
     map_center = st.session_state.get("map_center", [4.2105, 108.9758] if not current_state else STATE_COORDS.get(current_state, [4.2105, 108.9758]))
     map_zoom = st.session_state.get("map_zoom", 6 if not current_state else 9)
     
     m = folium.Map(location=map_center, zoom_start=map_zoom, tiles="OpenStreetMap")
 
-    # Mode 1: No state selected -> Show State Markers
+    # Map Mode 1: No State Selected -> Show State Level Map
     if not current_state:
         for st_name in available_states:
             if st_name in STATE_COORDS:
                 folium.CircleMarker(
-                    location=STATE_COORDS[st_name], radius=10, color="#15243A", weight=2,
+                    location=STATE_COORDS[st_name], radius=11, color="#15243A", weight=2,
                     fill=True, fill_color="#2F6FED", fill_opacity=0.8,
-                    tooltip=folium.Tooltip(f"<b>{st_name}</b> (Click to explore)", sticky=True),
+                    tooltip=folium.Tooltip(f"<b>{st_name}</b> (Click to select state)", sticky=True),
                     popup=f"STATE:{st_name}"
                 ).add_to(m)
-    # Mode 2: State selected -> Show Top Area Markers for that state
+                
+    # Map Mode 2: State Selected -> Show Area Level Map (Drill down)
     else:
-        top_areas = data[data["State"] == current_state]["Area_Clean"].value_counts().head(20).index
+        top_areas = data[data["State"] == current_state]["Area_Clean"].value_counts().head(15).index
         for area_clean in top_areas:
             disp_area = display_name(area_clean)
             coords = get_area_coords(disp_area, current_state)
             if coords:
                 is_sel = (disp_area == current_area)
                 folium.CircleMarker(
-                    location=coords, radius=10 if is_sel else 6,
+                    location=coords, radius=12 if is_sel else 8,
                     color="#18875D" if is_sel else "#C47A10", weight=3 if is_sel else 2,
                     fill=True, fill_color="#10B981" if is_sel else "#F59E0B", fill_opacity=0.9 if is_sel else 0.7,
-                    tooltip=folium.Tooltip(f"<b>{disp_area}</b> (Click to select)", sticky=True),
+                    tooltip=folium.Tooltip(f"<b>{disp_area}</b> (Click to select area)", sticky=True),
                     popup=f"AREA:{disp_area}"
                 ).add_to(m)
 
@@ -264,23 +267,25 @@ def prediction_page(data, results):
         if popup_txt.startswith("STATE:"):
             clicked_st = popup_txt.split(":")[1]
             st.session_state["selected_state"] = clicked_st
-            st.session_state["selected_area"] = NO_AREA
+            st.session_state["selected_area"] = None
             st.session_state["map_center"] = STATE_COORDS.get(clicked_st, [4.2105, 108.9758])
             st.session_state["map_zoom"] = 9
             st.rerun()
         elif popup_txt.startswith("AREA:"):
             clicked_area = popup_txt.split(":")[1]
             st.session_state["selected_area"] = clicked_area
+            st.session_state["map_center"] = get_area_coords(clicked_area, current_state)
+            st.session_state["map_zoom"] = 12
             st.rerun()
 
-    # Location Readout & Reset
+    # Location Readout & Controls
     col_loc1, col_loc2 = st.columns([4, 1])
     with col_loc1:
-        st.markdown(f"**State:** {current_state or 'Not Selected'} &nbsp; | &nbsp; **Area:** {current_area.replace(NO_AREA, 'Not Selected')}")
+        st.markdown(f"**State:** {current_state or 'Not Selected'} &nbsp; | &nbsp; **Area:** {current_area or 'Not Selected'}")
     with col_loc2:
         if st.button("Reset Location", use_container_width=True):
             st.session_state["selected_state"] = None
-            st.session_state["selected_area"] = NO_AREA
+            st.session_state["selected_area"] = None
             st.session_state["map_center"] = [4.2105, 108.9758]
             st.session_state["map_zoom"] = 6
             st.rerun()
@@ -311,18 +316,17 @@ def prediction_page(data, results):
         field_label("Transactions")
         transactions = st.number_input("Transactions", min_value=0, step=1, value=int(round(data["Transactions"].median())), key="pred_txn", label_visibility="collapsed")
 
-    # Prediction Action
     st.markdown('<br>', unsafe_allow_html=True)
     predict_clicked = st.button("Generate Price Estimate  →", type="primary", use_container_width=True)
 
     # ---------------- RESULT RENDER ----------------
     if predict_clicked:
-        if not current_state:
-            st.error("Please select a State from the map or address input before predicting.")
+        if not current_state or not current_area:
+            st.error("Please select both a State and an Area from the map or address input before predicting.")
             return
 
         model = load_model(recommended)
-        area_key = create_area_key(current_state, current_area if current_area != NO_AREA else "")
+        area_key = create_area_key(current_state, current_area)
         ptype = st.session_state["selected_ptype"]
         
         features = pd.DataFrame([{
@@ -334,13 +338,12 @@ def prediction_page(data, results):
             prediction = float(model.predict(features)[0])
             
         metrics = results[results["Model"] == recommended].iloc[0]
-        location_str = f"{current_area}, {current_state}" if current_area != NO_AREA else current_state
 
         st.markdown(f'''
         <div class="mh-result" id="estimate-result">
             <div class="cap">Estimated median price</div>
             <div class="price">RM {prediction:,.0f}</div>
-            <div class="sub">{location_str} · {ptype} · {tenure}</div>
+            <div class="sub">{current_area}, {current_state} · {ptype} · {tenure}</div>
             <div class="rule"></div>
             <div class="mh-stats">
                 <div><div class="k">Model</div><div class="v">{recommended}</div></div>
@@ -349,10 +352,14 @@ def prediction_page(data, results):
             </div>
         </div>''', unsafe_allow_html=True)
 
+    else:
+        st.markdown(
+            '<div class="mh-empty"><div class="icon">⌂</div>'
+            '<b>Your estimate will appear here.</b>'
+            'Select location and property details above, then predict.</div>',
+            unsafe_allow_html=True
+        )
 
-# ---------------------------------------------------------------------------
-# PAGE 2 & 3
-# ---------------------------------------------------------------------------
 FIGURE_GROUPS = {
     "Data quality": [("fig01_raw_target_distribution.png", "House prices are heavily skewed."), ("fig10_outlier_before_after.png", "Extreme values removed by outlier cleaning.")],
     "Area quality and coverage": [("fig14_top20_areas.png", "The 20 areas with the most records in the dataset."), ("fig16_area_price_distribution.png", "How median price varies across different areas.")],
