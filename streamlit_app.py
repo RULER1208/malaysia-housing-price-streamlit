@@ -82,11 +82,45 @@ OFFICIAL_DISTRICTS = {
 assert len(OFFICIAL_DISTRICTS) == 16
 assert sum(len(v) for v in OFFICIAL_DISTRICTS.values()) == 160
 
-# Extra display areas for map UX where official district coverage is too coarse.
-# Putrajaya is one administrative district in DOSM, but the federal territory is
-# organised into 20 precincts in official planning references.
+# Extra official/local planning areas for the four DOSM state-level units that
+# do not have lower administrative districts in the 160-district dataset.
+# These are used for MAP SELECTION only; model compatibility is handled separately.
 SPECIAL_DISPLAY_AREAS = {
-    "Putrajaya": [f"Precinct {i}" for i in range(1, 21)]
+    # Perbadanan Putrajaya: 20 precincts
+    "Putrajaya": [f"Precinct {i}" for i in range(1, 21)],
+
+    # Perlis: 22 mukim
+    "Perlis": [
+        "Titi Tinggi", "Beseri", "Chuping", "Paya", "Padang Siding", "Abi",
+        "Padang Pauh", "Ngulang", "Oran", "Kurong Batang", "Arau", "Kechor",
+        "Sena", "Sungai Adam", "Kurong Anai", "Jejawi", "Kuala Perlis",
+        "Wang Bintong", "Seriab", "Kayang", "Utan Aji", "Sanglang",
+    ],
+
+    # DBKL: 6 strategic planning zones
+    "Kuala Lumpur": [
+        "City Centre", "Wangsa Maju - Maluri", "Bukit Jalil - Seputeh",
+        "Bandar Tun Razak - Sungai Besi", "Sentul - Menjalara",
+        "Damansara - Penchala",
+    ],
+
+    # Perbadanan Labuan JPKK village areas
+    "Labuan": [
+        "Batu Arang", "Batu Manikar", "Bebuloh", "Belukut", "Bukit Kallam",
+        "Bukit Kuda", "Durian Tunjong", "Ganggarak", "Gersik/Saguking",
+        "Kerupang/Nagalang", "Kilan/Pulau Akar", "Lajau", "Layang-Layangan",
+        "Lubuk Temiang", "Pantai", "Patau-Patau 1", "Patau-Patau 2",
+        "Pohon Batu", "Rancha-Rancha", "Sungai Bangat", "Sungai Bedaun",
+        "Sungai Buton", "Sungai Keling", "Sungai Labu", "Sungai Lada",
+        "Sungai Miri", "Tanjung Aru",
+    ],
+}
+
+SPECIAL_AREA_LABELS = {
+    "Putrajaya": "Precinct",
+    "Perlis": "Mukim",
+    "Kuala Lumpur": "Strategic zone",
+    "Labuan": "Village area",
 }
 
 # Massively expanded pre-calculated real-world coordinates for exact map pins
@@ -183,41 +217,47 @@ footer { visibility:hidden; }
 .stTabs [role="tablist"] {
     display:flex!important;
     align-items:center!important;
-    gap:18px!important;
-    min-height:110px;
-    padding:18px 26px!important;
-    background:linear-gradient(135deg, #15243A 0%, #203253 100%)!important;
-    border:1px solid rgba(255,255,255,.06)!important;
-    border-radius:30px!important;
-    margin:12px 0 30px!important;
-    box-shadow:0 18px 40px rgba(17,24,39,.18);
+    gap:12px!important;
+    min-height:96px;
+    padding:16px 22px!important;
+    background:linear-gradient(135deg, #13233C 0%, #1D3154 58%, #28456F 100%)!important;
+    border:1px solid rgba(255,255,255,.08)!important;
+    border-radius:24px!important;
+    margin:10px 0 28px!important;
+    box-shadow:0 16px 34px rgba(20,36,60,.18);
 }
 .stTabs [role="tablist"]::before {
     content:"⌂  Malaysia\AHousing Estimator";
     white-space:pre;
     display:block;
-    min-width:265px;
-    padding:10px 12px;
-    line-height:1.18;
-    font-size:1.2rem;
+    min-width:250px;
+    padding:8px 12px;
+    line-height:1.16;
+    font-size:1.16rem;
     font-weight:800;
+    letter-spacing:.01em;
     color:#FFFFFF;
-    margin-right:10px;
+    margin-right:14px;
 }
 .stTabs [role="tab"] {
-    height:50px!important;
-    padding:0 30px!important;
-    border-radius:999px!important;
-    color:#C9D5EA!important;
+    height:48px!important;
+    padding:0 26px!important;
+    border-radius:14px!important;
+    color:#C9D5E8!important;
     font-weight:700;
-    font-size:1rem!important;
-    background:transparent!important;
-    border:none!important;
+    font-size:.98rem!important;
+    background:rgba(255,255,255,.035)!important;
+    border:1px solid transparent!important;
+}
+.stTabs [role="tab"]:hover {
+    color:#FFFFFF!important;
+    background:rgba(255,255,255,.08)!important;
 }
 .stTabs [role="tab"][aria-selected="true"] {
-    color:var(--navy)!important;
-    background:#FFFFFF!important;
-    box-shadow:0 14px 30px rgba(79,111,234,.22), inset 0 -3px 0 #5A78EC;
+    color:#183052!important;
+    background:#F8FAFF!important;
+    border-color:rgba(255,255,255,.75)!important;
+    box-shadow:0 8px 20px rgba(7,18,36,.18), inset 0 -3px 0 #5C7CFA;
 }
 .stTabs [data-baseweb="tab-highlight"], .stTabs [data-baseweb="tab-border"] { display:none!important; }
 
@@ -355,11 +395,29 @@ button[kind="secondary"] {
     border-radius: 14px !important;
 }
 
+
+.mh-footer {
+    margin-top:34px;
+    padding:18px 22px;
+    border-radius:20px;
+    background:linear-gradient(135deg, #172944 0%, #223A61 100%);
+    color:#DCE6F7;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:18px;
+    box-shadow:0 12px 28px rgba(20,36,60,.12);
+    border:1px solid rgba(255,255,255,.07);
+}
+.mh-footer .brand { color:#FFFFFF; font-weight:800; letter-spacing:.01em; }
+.mh-footer .sub { color:#AFC0DA; font-size:.86rem; }
+
 @media (max-width: 900px) {
     .mh-stats { grid-template-columns:1fr; }
     .mh-chip { width:100%; justify-content:center; }
     .mh-result-top { flex-direction:column; }
     .mh-result-badge { width:100%; min-width:auto; }
+    .mh-footer { flex-direction:column; align-items:flex-start; }
 }
 </style>
 """, unsafe_allow_html=True)
@@ -443,6 +501,14 @@ def get_areas_for_state(data: pd.DataFrame, state_name: str):
     }
     official_areas = set(OFFICIAL_DISTRICTS.get(state_name, []))
     special_areas = set(SPECIAL_DISPLAY_AREAS.get(state_name, []))
+
+    # DOSM represents Perlis and the 3 Federal Territories as their own district.
+    # When a more useful official/local sub-area list exists, do not show the
+    # redundant state-name pin on the map unless it is explicitly in the dataset.
+    if special_areas:
+        official_areas.discard(state_name)
+        dataset_areas.discard(state_name)
+
     return sorted(dataset_areas | official_areas | special_areas)
 
 @st.cache_data(show_spinner=False)
@@ -540,7 +606,6 @@ def prediction_page(data, results):
     
     st.markdown("<h3 class='mh-section-title'>📍 1. Location Selection</h3>", unsafe_allow_html=True)
     st.markdown("<p class='mh-section-note'>Select your location directly from the map. First choose a state, then the map zooms in so you can choose the area.</p>", unsafe_allow_html=True)
-    st.markdown("<div class='mh-map-tip'><b>How to use:</b> click a <b>state</b> pin first. After the map zooms in, click an <b>area</b> pin for that state. The map covers all <b>16 Malaysia states / federal territories</b>. Each state uses your housing-dataset areas plus the official <b>DOSM administrative district</b> list, and Putrajaya also shows its <b>20 precincts</b> for a more useful map experience.</div>", unsafe_allow_html=True)
 
     st.text_input("Enter your address or postcode to auto-detect location, or click the map below:", 
                   placeholder="e.g. 45400 or Sekinchan, Selangor",
@@ -563,7 +628,8 @@ def prediction_page(data, results):
                 
     else:
         # Keep every housing-dataset locality for model compatibility, then add
-        # the complete official DOSM administrative districts for nationwide coverage.
+        # official DOSM districts and the verified special sub-area lists for
+        # Perlis and the three Federal Territories.
         areas_to_plot = set(get_areas_for_state(data, current_state))
 
         if current_area:
@@ -575,7 +641,9 @@ def prediction_page(data, results):
             coords, is_approx = get_area_map_coords(disp_area, current_state)
             if coords:
                 is_sel = (disp_area == current_area)
-                pin_note = "Approximate map position · click to select" if is_approx else "Click to select area"
+                is_special = disp_area in SPECIAL_DISPLAY_AREAS.get(current_state, [])
+                area_kind = SPECIAL_AREA_LABELS.get(current_state, "Area") if is_special else "Area"
+                pin_note = "Approximate map position · click to select" if is_approx else "Click to select"
                 folium.CircleMarker(
                     location=coords, radius=12 if is_sel else 8,
                     color="#18875D" if is_sel else ("#98A2B3" if is_approx else "#C47A10"),
@@ -583,7 +651,7 @@ def prediction_page(data, results):
                     fill=True,
                     fill_color="#10B981" if is_sel else ("#D0D5DD" if is_approx else "#F59E0B"),
                     fill_opacity=0.9 if is_sel else 0.75,
-                    tooltip=folium.Tooltip(f"<b>{disp_area}</b><br>{pin_note}", sticky=True),
+                    tooltip=folium.Tooltip(f"<b>{disp_area}</b><br>{area_kind} · {pin_note}", sticky=True),
                     popup=f"AREA:{disp_area}"
                 ).add_to(marker_cluster)
 
@@ -769,6 +837,15 @@ def main():
     with pred: prediction_page(data, results)
     with insights: insights_page(data)
     with report: model_report_page(results)
+
+    st.markdown(
+        "<div class='mh-footer'>"
+        "<div><div class='brand'>⌂ Malaysia Housing Estimator</div>"
+        "<div class='sub'>Interactive location-based housing price estimation</div></div>"
+        "<div class='sub'>Malaysia · 2026</div>"
+        "</div>",
+        unsafe_allow_html=True,
+    )
 
 if __name__ == "__main__":
     main()
