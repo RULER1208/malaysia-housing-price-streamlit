@@ -68,7 +68,7 @@ OFFICIAL_DISTRICTS = {
     "Negeri Sembilan": ["Jelebu", "Jempol", "Kuala Pilah", "Port Dickson", "Rembau", "Seremban", "Tampin"],
     "Pahang": ["Bentong", "Bera", "Cameron Highlands", "Jerantut", "Kuantan", "Lipis", "Maran", "Pekan", "Raub", "Rompin", "Temerloh"],
     "Penang": ["Barat Daya", "Seberang Perai Selatan", "Seberang Perai Tengah", "Seberang Perai Utara", "Timur Laut"],
-    "Perak": ["Batang Padang", "Manjung", "Kinta", "Kerian", "Kuala Kangsar", "Larut Dan Matang", "Hilir Perak", "Hulu Perak", "Perak Tengah", "Kampar", "Muallim", "Bagan Datuk", "Selama"],
+    "Perak": ["Batang Padang", "Manjung", "Kinta", "Kerian", "Kuala Kangsar", "Larut & Matang", "Hilir Perak", "Hulu Perak", "Perak Tengah", "Kampar", "Muallim", "Bagan Datuk", "Selama"],
     "Perlis": ["Perlis"],
     "Sabah": ["Tawau", "Lahad Datu", "Semporna", "Sandakan", "Kinabatangan", "Beluran", "Kota Kinabalu", "Ranau", "Kota Belud", "Tuaran", "Penampang", "Papar", "Kudat", "Kota Marudu", "Pitas", "Beaufort", "Kuala Penyu", "Sipitang", "Tenom", "Nabawan", "Keningau", "Tambunan", "Kunak", "Tongod", "Putatan", "Telupid", "Kalabakan"],
     "Sarawak": ["Kuching", "Bau", "Lundu", "Samarahan", "Serian", "Simunjan", "Sri Aman", "Lubok Antu", "Betong", "Saratok", "Sarikei", "Maradong", "Daro", "Julau", "Sibu", "Dalat", "Mukah", "Kanowit", "Bintulu", "Tatau", "Kapit", "Song", "Belaga", "Miri", "Marudi", "Limbang", "Lawas", "Matu", "Asajaya", "Pakan", "Selangau", "Tebedu", "Pusa", "Kabong", "Tanjung Manis", "Sebauh", "Bukit Mabong", "Subis", "Beluru", "Telang Usan"],
@@ -198,9 +198,6 @@ header[data-testid="stHeader"] { background:transparent!important; }
     padding:12px 18px; min-height:54px; border-radius:999px; color:#344054; font-size:1rem; box-shadow:0 2px 10px rgba(15,23,42,.04);
 }
 .mh-chip strong { color:#0F172A; }
-.mh-subcard {
-    background:#FFFFFF; border:1px solid var(--border); border-radius:16px; padding:16px 18px; box-shadow:0 4px 14px rgba(15,23,42,.05);
-}
 .mh-map-wrap {
     border:1px solid var(--border); border-radius:18px; overflow:hidden; box-shadow:0 8px 22px rgba(15,23,42,.06); background:#FFF;
 }
@@ -228,35 +225,43 @@ header[data-testid="stHeader"] { background:transparent!important; }
 div[role="radiogroup"] { gap: 15px; }
 
 /* Property selector: direct-click buttons, no overlay / no empty box */
-div[data-testid="stVerticalBlock"]:has(.property-grid-anchor) div.stButton > button[kind="secondary"],
-div[data-testid="stVerticalBlock"]:has(.property-grid-anchor) div.stButton > button[kind="primary"] {
-    min-height: 88px !important;
+div[class*="st-key-btn_"] button[kind="secondary"],
+div[class*="st-key-btn_"] button[kind="primary"] {
+    min-height: 82px !important;
     border-radius: 18px !important;
     white-space: pre-line !important;
     line-height: 1.28 !important;
-    padding: 12px 10px !important;
+    padding: 9px 5px !important;
     font-weight: 650 !important;
-    font-size: .98rem !important;
+    font-size: .76rem !important;
     text-align: center !important;
     box-shadow: 0 6px 18px rgba(15,23,42,.06) !important;
 }
 
-div[data-testid="stVerticalBlock"]:has(.property-grid-anchor) div.stButton > button[kind="secondary"] {
+div[class*="st-key-btn_"] button[kind="secondary"] {
     background: #FFFFFF !important;
     color: #1F2937 !important;
     border: 1px solid #D8DFEB !important;
 }
 
-div[data-testid="stVerticalBlock"]:has(.property-grid-anchor) div.stButton > button[kind="secondary"]:hover {
+div[class*="st-key-btn_"] button[kind="secondary"]:hover {
     border-color: #A7B8F8 !important;
     color: #2744B2 !important;
     transform: translateY(-1px);
 }
 
-div[data-testid="stVerticalBlock"]:has(.property-grid-anchor) div.stButton > button[kind="primary"] {
+div[class*="st-key-btn_"] button[kind="primary"] {
     background: linear-gradient(180deg, #5A78EC 0%, #4B66DF 100%) !important;
     color: #FFFFFF !important;
     border: none !important;
+}
+
+
+/* Keep all property types on one clean horizontal row */
+div[class*="st-key-btn_"] button p {
+    margin:0 !important;
+    white-space:pre-line !important;
+    overflow-wrap:anywhere !important;
 }
 
 /* Neat inputs */
@@ -293,10 +298,10 @@ def load_model(name):
 
 @st.cache_data(show_spinner=False)
 def get_area_coords(area_name: str, state_name: str):
+    """Return a real known/geocoded coordinate, or None if it cannot be verified."""
     if state_name in HARDCODED_AREAS and area_name in HARDCODED_AREAS[state_name]:
         return HARDCODED_AREAS[state_name][area_name]
 
-    # Try real coordinates first.
     if HAS_GEOPY:
         try:
             geolocator = Nominatim(user_agent="mh_estimator", timeout=4)
@@ -310,18 +315,27 @@ def get_area_coords(area_name: str, state_name: str):
         except Exception:
             pass
 
-    # Perlis and Federal Territories have no lower DOSM administrative district.
+    # Perlis and Federal Territories have no lower DOSM administrative subdivision.
     if area_name == state_name:
         return STATE_COORDS.get(state_name)
+    return None
 
-    # Last-resort visible fallback so every area still appears on the map.
+@st.cache_data(show_spinner=False)
+def get_area_map_coords(area_name: str, state_name: str):
+    """Always return a map pin while preserving whether its position is verified."""
+    real = get_area_coords(area_name, state_name)
+    if real:
+        return real, False
+
+    # If live geocoding is unavailable, keep the area selectable but mark the pin
+    # as approximate rather than pretending the fallback coordinate is exact.
     base = STATE_COORDS.get(state_name)
     if not base:
-        return None
+        return None, True
     h = int(hashlib.md5(f"{state_name}|{area_name}".encode("utf-8")).hexdigest(), 16)
-    lat_offset = (((h % 1000) / 999) - 0.5) * 0.9
-    lon_offset = ((((h // 1000) % 1000) / 999) - 0.5) * 1.2
-    return [base[0] + lat_offset, base[1] + lon_offset]
+    lat_offset = (((h % 1000) / 999) - 0.5) * 0.55
+    lon_offset = ((((h // 1000) % 1000) / 999) - 0.5) * 0.75
+    return [base[0] + lat_offset, base[1] + lon_offset], True
 
 def field_label(text: str) -> None:
     st.markdown(f'<div class="mh-label">{text}</div>', unsafe_allow_html=True)
@@ -394,7 +408,7 @@ def analyze_address(data, available_states):
         st.session_state["selected_state"] = matched_state
         if matched_area:
             st.session_state["selected_area"] = matched_area
-            coords = get_area_coords(matched_area, matched_state)
+            coords, _ = get_area_map_coords(matched_area, matched_state)
             if coords:
                 st.session_state["map_center"] = coords
                 st.session_state["map_zoom"] = 12
@@ -455,20 +469,30 @@ def prediction_page(data, results):
         marker_cluster = MarkerCluster(name="Areas").add_to(m)
         
         for disp_area in sorted(areas_to_plot):
-            coords = get_area_coords(disp_area, current_state)
+            coords, is_approx = get_area_map_coords(disp_area, current_state)
             if coords:
                 is_sel = (disp_area == current_area)
+                pin_note = "Approximate map position · click to select" if is_approx else "Click to select area"
                 folium.CircleMarker(
                     location=coords, radius=12 if is_sel else 8,
-                    color="#18875D" if is_sel else "#C47A10", weight=3 if is_sel else 2,
-                    fill=True, fill_color="#10B981" if is_sel else "#F59E0B", fill_opacity=0.9 if is_sel else 0.7,
-                    tooltip=folium.Tooltip(f"<b>{disp_area}</b> (Click to select area)", sticky=True),
+                    color="#18875D" if is_sel else ("#98A2B3" if is_approx else "#C47A10"),
+                    weight=3 if is_sel else 2,
+                    fill=True,
+                    fill_color="#10B981" if is_sel else ("#D0D5DD" if is_approx else "#F59E0B"),
+                    fill_opacity=0.9 if is_sel else 0.75,
+                    tooltip=folium.Tooltip(f"<b>{disp_area}</b><br>{pin_note}", sticky=True),
                     popup=f"AREA:{disp_area}"
                 ).add_to(marker_cluster)
 
     st.markdown("<div class='mh-map-wrap'>", unsafe_allow_html=True)
     map_data = st_folium(m, height=470, use_container_width=True, key="malaysia_map")
     st.markdown("</div>", unsafe_allow_html=True)
+    st.markdown(
+        "<div style='font-size:.82rem;color:#667085;margin-top:6px;'>"
+        "<b>Map pins:</b> 🔵 State &nbsp; 🟠 Verified area &nbsp; ⚪ Approximate pin if live geocoding is unavailable &nbsp; 🟢 Selected area"
+        "</div>",
+        unsafe_allow_html=True,
+    )
     
     if map_data and map_data.get("last_object_clicked_popup"):
         popup_txt = map_data["last_object_clicked_popup"]
@@ -482,7 +506,9 @@ def prediction_page(data, results):
         elif popup_txt.startswith("AREA:"):
             clicked_area = popup_txt.split(":")[1]
             st.session_state["selected_area"] = clicked_area
-            st.session_state["map_center"] = get_area_coords(clicked_area, current_state)
+            coords, _ = get_area_map_coords(clicked_area, current_state)
+            if coords:
+                st.session_state["map_center"] = coords
             st.session_state["map_zoom"] = 12
             st.rerun()
 
@@ -495,32 +521,23 @@ def prediction_page(data, results):
     st.markdown('<hr class="mh-rule">', unsafe_allow_html=True)
     st.markdown("<h3 class='mh-section-title'>🏡 2. Property Details</h3>", unsafe_allow_html=True)
     st.markdown("<p class='mh-section-note'>Choose a property type, then set the tenure and median price per square foot.</p>", unsafe_allow_html=True)
-    st.markdown("<div class='mh-subcard'>", unsafe_allow_html=True)
 
     # ---------------- DIRECT-CLICK PROPERTY TYPE CARDS ----------------
+    # One horizontal row; selection logic remains the same.
     field_label("Select Property Type")
-    st.markdown("<div class='property-grid-anchor'></div>", unsafe_allow_html=True)
-    row_size = 4
-    for start_idx in range(0, len(ptypes), row_size):
-        row = ptypes[start_idx:start_idx + row_size]
-        row_cols = st.columns(row_size)
-        for col_idx in range(row_size):
-            with row_cols[col_idx]:
-                if col_idx < len(row):
-                    pt = row[col_idx]
-                    is_sel = (pt == st.session_state["selected_ptype"])
-                    if st.button(
-                        get_property_label(pt),
-                        key=f"btn_{pt}",
-                        type="primary" if is_sel else "secondary",
-                        use_container_width=True,
-                    ):
-                        st.session_state["selected_ptype"] = pt
-                        st.rerun()
-                else:
-                    st.empty()
+    ptype_cols = st.columns(len(ptypes), gap="small")
 
-    st.caption(f"Selected property type: {st.session_state['selected_ptype']}")
+    for i, pt in enumerate(ptypes):
+        with ptype_cols[i]:
+            is_sel = (pt == st.session_state["selected_ptype"])
+            if st.button(
+                get_property_label(pt),
+                key=f"btn_{pt}",
+                type="primary" if is_sel else "secondary",
+                use_container_width=True,
+            ):
+                st.session_state["selected_ptype"] = pt
+                st.rerun()
 
     # Numerical Inputs
     col_in1, col_in2 = st.columns(2)
@@ -534,7 +551,6 @@ def prediction_page(data, results):
 
     st.markdown('<br>', unsafe_allow_html=True)
     predict_clicked = st.button("Generate Price Estimate  →", type="primary", use_container_width=True)
-    st.markdown("</div>", unsafe_allow_html=True)
 
     # ---------------- RESULT RENDER ----------------
     if predict_clicked:
