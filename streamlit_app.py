@@ -55,62 +55,76 @@ STATE_COORDS = {
     "Putrajaya": [2.9264, 101.6964], "Labuan": [5.2831, 115.2308]
 }
 
+# Grouped hardcoded areas by state to ensure they ALWAYS appear on the map
 HARDCODED_AREAS = {
-    # Selangor
-    "Sekinchan": [3.5053, 101.1036], "Tanjong Karang": [3.4267, 101.1773],
-    "Pandamaran": [3.0132, 101.4172], "Kuala Selangor": [3.3364, 101.2504],
-    "Sabak Bernam": [3.7667, 100.9833], "Sungai Besar": [3.6833, 100.9833],
-    "Banting": [2.8155, 101.4975], "Petaling Jaya": [3.1073, 101.6067], 
-    "Shah Alam": [3.0738, 101.5183], "Subang Jaya": [3.0471, 101.5832],
-    "Klang": [3.0449, 101.4456], "Puchong": [3.0246, 101.6168], 
-    "Kajang": [2.9935, 101.7892], "Cheras": [3.1062, 101.7690],
-    "Rawang": [3.3213, 101.5822], "Cyberjaya": [2.9228, 101.6572],
-    "Setia Alam": [3.1110, 101.4450], "Bukit Beruntung": [3.3100, 101.5540],
-    "Bandar Saujana Putra": [2.9490, 101.5790], "Semenyih": [2.9480, 101.8440],
-    "Bangi": [2.9200, 101.7800], "Serdang": [3.0220, 101.7100],
-    "Batu Caves": [3.2380, 101.6810], "Ampang": [3.1490, 101.7610],
-    "Sungai Buloh": [3.2080, 101.5790], "Gombak": [3.2200, 101.7000],
-    "Sepang": [2.6865, 101.7483], "Selayang": [3.2505, 101.6448],
-    # Kuala Lumpur
-    "Bukit Bintang": [3.1460, 101.7110], "Setapak": [3.1895, 101.7058], 
-    "Kepong": [3.2120, 101.6358], "Mont Kiara": [3.1672, 101.6508], 
-    "Bukit Jalil": [3.0578, 101.6885], "Wangsa Maju": [3.2045, 101.7348], 
-    "Bangsar": [3.1253, 101.6749], "Old Klang Road": [3.0830, 101.6740],
-    # Johor
-    "Skudai": [1.5333, 103.6667], "Tebrau": [1.5833, 103.7500], 
-    "Pasir Gudang": [1.4703, 103.8966], "Kulai": [1.6561, 103.6023], 
-    "Johor Bahru": [1.4927, 103.7414], "Batu Pahat": [1.8548, 102.9325],
-    "Kluang": [2.0251, 103.3328], "Muar": [2.0442, 102.5689], 
-    "Pontian": [1.4883, 103.3888], "Kota Tinggi": [1.7381, 103.8999],
-    "Segamat": [2.5144, 102.8159], "Mersing": [2.4312, 103.8361],
-    # Perak
-    "Tapah": [4.2000, 101.2600], "Ipoh": [4.5975, 101.0901],
-    "Taiping": [4.8500, 100.7333], "Teluk Intan": [4.0259, 101.0213],
-    "Sitiawan": [4.2144, 100.6974], "Seri Manjung": [4.1950, 100.6650], 
-    "Kampar": [4.3000, 101.1500], "Lumut": [4.2333, 100.6333],
-    "Chenderiang": [4.2667, 101.2333],
-    # Penang
-    "Georgetown": [5.4141, 100.3288], "Butterworth": [5.3995, 100.3638], 
-    "Bayan Lepas": [5.2952, 100.2588], "Tasek Gelugor": [5.4833, 100.4833],
-    "Bukit Mertajam": [5.3629, 100.4666], "Perai": [5.3833, 100.3833],
-    "Batu Kawan": [5.2652, 100.4283], "Nibong Tebal": [5.1667, 100.4667],
-    "Kepala Batas": [5.5167, 100.4333],
-    # Melaka & Negeri Sembilan
-    "Bemban": [2.2667, 102.3667], "Jasin": [2.3130, 102.4312],
-    "Ayer Keroh": [2.2642, 102.2858], "Alor Gajah": [2.3833, 102.2000],
-    "Seremban": [2.7297, 101.9381], "Port Dickson": [2.5228, 101.7959],
-    "Nilai": [2.8167, 101.8000],
-    # Kedah, East Coast, Borneo
-    "Alor Setar": [6.1210, 100.3601], "Sungai Petani": [5.6436, 100.4897],
-    "Kulim": [5.3667, 100.5500], "Kuantan": [3.8077, 103.3260], 
-    "Temerloh": [3.4506, 102.4168], "Cameron Highlands": [4.4721, 101.3801],
-    "Kota Bharu": [6.1254, 102.2381], "Kuala Terengganu": [5.3302, 103.1408],
-    "Kemaman": [4.2333, 103.3333], "Kota Kinabalu": [5.9804, 116.0735], 
-    "Kuching": [1.5533, 110.3592]
+    "Selangor": {
+        "Sekinchan": [3.5053, 101.1036], "Tanjong Karang": [3.4267, 101.1773],
+        "Pandamaran": [3.0132, 101.4172], "Kuala Selangor": [3.3364, 101.2504],
+        "Sabak Bernam": [3.7667, 100.9833], "Sungai Besar": [3.6833, 100.9833],
+        "Banting": [2.8155, 101.4975], "Petaling Jaya": [3.1073, 101.6067], 
+        "Shah Alam": [3.0738, 101.5183], "Subang Jaya": [3.0471, 101.5832],
+        "Klang": [3.0449, 101.4456], "Puchong": [3.0246, 101.6168], 
+        "Kajang": [2.9935, 101.7892], "Cheras": [3.1062, 101.7690],
+        "Rawang": [3.3213, 101.5822], "Cyberjaya": [2.9228, 101.6572],
+        "Setia Alam": [3.1110, 101.4450], "Bukit Beruntung": [3.3100, 101.5540],
+        "Bandar Saujana Putra": [2.9490, 101.5790], "Semenyih": [2.9480, 101.8440],
+        "Bangi": [2.9200, 101.7800], "Serdang": [3.0220, 101.7100],
+        "Batu Caves": [3.2380, 101.6810], "Ampang": [3.1490, 101.7610],
+        "Sungai Buloh": [3.2080, 101.5790], "Gombak": [3.2200, 101.7000],
+        "Sepang": [2.6865, 101.7483], "Selayang": [3.2505, 101.6448],
+    },
+    "Kuala Lumpur": {
+        "Bukit Bintang": [3.1460, 101.7110], "Setapak": [3.1895, 101.7058], 
+        "Kepong": [3.2120, 101.6358], "Mont Kiara": [3.1672, 101.6508], 
+        "Bukit Jalil": [3.0578, 101.6885], "Wangsa Maju": [3.2045, 101.7348], 
+        "Bangsar": [3.1253, 101.6749], "Old Klang Road": [3.0830, 101.6740],
+    },
+    "Johor": {
+        "Skudai": [1.5333, 103.6667], "Tebrau": [1.5833, 103.7500], 
+        "Pasir Gudang": [1.4703, 103.8966], "Kulai": [1.6561, 103.6023], 
+        "Johor Bahru": [1.4927, 103.7414], "Batu Pahat": [1.8548, 102.9325],
+        "Kluang": [2.0251, 103.3328], "Muar": [2.0442, 102.5689], 
+        "Pontian": [1.4883, 103.3888], "Kota Tinggi": [1.7381, 103.8999],
+        "Segamat": [2.5144, 102.8159], "Mersing": [2.4312, 103.8361],
+    },
+    "Perak": {
+        "Tapah": [4.2000, 101.2600], "Ipoh": [4.5975, 101.0901],
+        "Taiping": [4.8500, 100.7333], "Teluk Intan": [4.0259, 101.0213],
+        "Sitiawan": [4.2144, 100.6974], "Seri Manjung": [4.1950, 100.6650], 
+        "Kampar": [4.3000, 101.1500], "Lumut": [4.2333, 100.6333],
+        "Chenderiang": [4.2667, 101.2333],
+    },
+    "Penang": {
+        "Georgetown": [5.4141, 100.3288], "Butterworth": [5.3995, 100.3638], 
+        "Bayan Lepas": [5.2952, 100.2588], "Tasek Gelugor": [5.4833, 100.4833],
+        "Bukit Mertajam": [5.3629, 100.4666], "Perai": [5.3833, 100.3833],
+        "Batu Kawan": [5.2652, 100.4283], "Nibong Tebal": [5.1667, 100.4667],
+        "Kepala Batas": [5.5167, 100.4333],
+    },
+    "Melaka": {
+        "Bemban": [2.2667, 102.3667], "Jasin": [2.3130, 102.4312],
+        "Ayer Keroh": [2.2642, 102.2858], "Alor Gajah": [2.3833, 102.2000],
+    },
+    "Negeri Sembilan": {
+        "Seremban": [2.7297, 101.9381], "Port Dickson": [2.5228, 101.7959],
+        "Nilai": [2.8167, 101.8000],
+    },
+    "Kedah": {
+        "Alor Setar": [6.1210, 100.3601], "Sungai Petani": [5.6436, 100.4897],
+        "Kulim": [5.3667, 100.5500],
+    },
+    "Pahang": {
+        "Kuantan": [3.8077, 103.3260], "Temerloh": [3.4506, 102.4168], 
+        "Cameron Highlands": [4.4721, 101.3801]
+    },
+    "Kelantan": { "Kota Bharu": [6.1254, 102.2381] },
+    "Terengganu": { "Kuala Terengganu": [5.3302, 103.1408], "Kemaman": [4.2333, 103.3333] },
+    "Sabah": { "Kota Kinabalu": [5.9804, 116.0735] },
+    "Sarawak": { "Kuching": [1.5533, 110.3592] }
 }
 
 # ---------------------------------------------------------------------------
-# STYLES
+# STYLES & UNIVERSAL SVG BUTTON HACK
 # ---------------------------------------------------------------------------
 st.markdown(r"""
 <style>
@@ -141,20 +155,23 @@ header[data-testid="stHeader"] { background:transparent!important; }
 .mh-stats { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; }
 .mh-stats .k { font-family:var(--mono); font-size:.68rem; letter-spacing:.12em; color:#9FB4D4; text-transform:uppercase; margin-bottom:3px; }
 .mh-stats .v { font-family:var(--mono); font-size:.94rem; font-weight:700; color:#FFFFFF; }
-.stButton>button[kind="primary"] { background:var(--blue); border-color:var(--blue); border-radius:11px; min-height:44px;}
-.mh-empty { background:#FFFFFF; border:1px dashed #CFD8E6; border-radius:14px; padding:52px 24px; text-align:center; color:var(--muted); box-shadow:var(--shadow); margin-top:20px;}
 
-/* CSS HACK: Clean SVG overlay for clickability without causing layout collapse */
-div[data-testid="column"]:has(.ptype-card) {
-    position: relative !important;
-}
-div[data-testid="column"]:has(.ptype-card) div[data-testid="stButton"] {
+.mh-empty { background:#FFFFFF; border:1px dashed #CFD8E6; border-radius:14px; padding:52px 24px; text-align:center; color:var(--muted); box-shadow:var(--shadow); margin-top:20px;}
+.stButton>button[kind="primary"] { background:var(--blue); border-color:var(--blue); border-radius:11px; min-height:44px;}
+
+/* 
+  UNIVERSAL BUTTON HACK:
+  This CSS targets ONLY secondary buttons (which we strictly use for the SVG properties).
+  It gives the column a relative positioning, and stretches the invisible button to cover the entire column. 
+  This permanently removes the broken white box artifact!
+*/
+div[data-testid="column"] { position: relative !important; }
+button[kind="secondary"] {
     position: absolute !important;
-    top: 0 !important; left: 0 !important; right: 0 !important; bottom: 0 !important;
-    opacity: 0 !important; z-index: 100 !important;
-}
-div[data-testid="column"]:has(.ptype-card) button {
-    width: 100% !important; height: 100% !important; cursor: pointer !important;
+    top: 0 !important; left: 0 !important;
+    width: 100% !important; height: 100% !important;
+    opacity: 0 !important; z-index: 999 !important;
+    cursor: pointer !important; margin: 0 !important;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -178,8 +195,8 @@ def load_model(name):
 @st.cache_data(show_spinner=False)
 def get_area_coords(area_name: str, state_name: str):
     """Retrieve precise map coordinates for an area with tight inland fallback scatter."""
-    if area_name in HARDCODED_AREAS:
-        return HARDCODED_AREAS[area_name]
+    if state_name in HARDCODED_AREAS and area_name in HARDCODED_AREAS[state_name]:
+        return HARDCODED_AREAS[state_name][area_name]
     
     if HAS_GEOPY:
         try:
@@ -227,8 +244,7 @@ def get_colored_svg(ptype: str, is_selected: bool) -> str:
     else:
         svg = f'<path fill="{c_frame}" d="M12 3L2 12h3v10h14V12h3L12 3z"/><rect fill="{c_wall}" x="5" y="12" width="14" height="10"/><rect fill="{c_accent}" x="10" y="15" width="4" height="7"/>'
         
-    # Standard HTML wrapping formatted correctly as a single string to avoid Streamlit <p> bugs
-    return f'<div class="ptype-card" style="border:{border}; background:{bg}; border-radius:12px; padding:15px 4px; text-align:center; display:flex; flex-direction:column; justify-content:center; align-items:center;"><svg style="{filter_style} transition: all 0.2s ease-in-out;" width="42" height="42" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">{svg}</svg><div style="font-size:0.75rem; font-weight:650; color:{txt_color}; margin-top:8px; line-height:1.1;">{ptype}</div></div>'
+    return f'<div style="border:{border}; background:{bg}; border-radius:12px; padding:15px 4px; text-align:center; height:105px; display:flex; flex-direction:column; justify-content:center; align-items:center;"><svg style="{filter_style} transition: all 0.2s ease-in-out;" width="42" height="42" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">{svg}</svg><div style="font-size:0.75rem; font-weight:650; color:{txt_color}; margin-top:8px; line-height:1.1;">{ptype}</div></div>'
 
 # ---------------------------------------------------------------------------
 # LOGIC CONTROLLERS
@@ -249,7 +265,7 @@ def analyze_address(data, available_states):
     matched_state = None
     matched_area = None
     
-    # 1. Check for exactly 5 digits (Postcode)
+    # 1. Check for exactly 5 digits (Postcode match via Geopy)
     postcode_match = re.search(r'\b\d{5}\b', addr)
     if postcode_match and HAS_GEOPY:
         postcode = postcode_match.group()
@@ -269,7 +285,7 @@ def analyze_address(data, available_states):
                     matched_area = display_name(raw_area)
         except: pass
 
-    # 2. String Match Fallback if Postcode fails
+    # 2. String Match Fallback
     if not matched_state:
         for st_name in sorted(available_states, key=len, reverse=True):
             if st_name.lower() in addr:
@@ -277,9 +293,12 @@ def analyze_address(data, available_states):
                 break
                 
     if matched_state and not matched_area:
-        valid_areas = data[data["State"] == matched_state]["Area_Clean"].dropna().unique()
-        valid_disp_areas = [display_name(a) for a in valid_areas]
-        for a in sorted(valid_disp_areas, key=len, reverse=True):
+        # Check both dataset areas AND our custom hardcoded list
+        valid_areas = set([display_name(a) for a in data[data["State"] == matched_state]["Area_Clean"].dropna().unique()])
+        if matched_state in HARDCODED_AREAS:
+            valid_areas.update(HARDCODED_AREAS[matched_state].keys())
+            
+        for a in sorted(valid_areas, key=len, reverse=True):
             if a.lower() in addr:
                 matched_area = a
                 break
@@ -336,11 +355,14 @@ def prediction_page(data, results):
                     popup=f"STATE:{st_name}"
                 ).add_to(m)
                 
-    # Map Mode 2: Dynamic Area Drill-Down
+    # Map Mode 2: Dynamic Area Drill-Down (Dataset + Hardcoded combined)
     else:
-        # Load all CSV areas for the current state
         all_state_areas = data[data["State"] == current_state]["Area_Clean"].dropna().unique()
         areas_to_plot = set([display_name(a) for a in all_state_areas])
+        
+        # Ensure our specific hardcoded areas ALWAYS appear on the map for the state
+        if current_state in HARDCODED_AREAS:
+            areas_to_plot.update(HARDCODED_AREAS[current_state].keys())
         if current_area:
             areas_to_plot.add(current_area)
             
@@ -381,27 +403,29 @@ def prediction_page(data, results):
     with col_loc1:
         st.markdown(f"**State:** {current_state or 'Not Selected'} &nbsp; | &nbsp; **Area:** {current_area or 'Not Selected'}")
     with col_loc2:
-        st.button("Reset Location", use_container_width=True, on_click=reset_location_state)
+        st.button("Reset Location", use_container_width=True, on_click=reset_location_state, type="primary")
 
     st.markdown('<hr class="mh-rule">', unsafe_allow_html=True)
     st.markdown("<h3 style='margin-top:0;'>🏡 2. Property Details</h3>", unsafe_allow_html=True)
 
-    # Interactive SVG Grid via CSS Overlay
+    # ---------------- UNIVERSAL CSS BUTTON OVERLAY ----------------
     field_label("Select Property Type")
     svg_cols = st.columns(len(ptypes))
+    
     for i, pt in enumerate(ptypes):
         with svg_cols[i]:
             is_sel = (pt == st.session_state["selected_ptype"])
             
-            # The SVG UI element (Rendered as single string to prevent layout collapse and raw </div> printing)
+            # The SVG UI element (Rendered as single string)
             st.markdown(get_colored_svg(pt, is_sel), unsafe_allow_html=True)
             
-            # The transparent Streamlit button covering it
-            if st.button(" ", key=f"btn_{pt}", use_container_width=True):
+            # The transparent Streamlit button covering it. 
+            # Note: We enforce type="secondary" here because our CSS hack strictly hides ALL secondary buttons inside columns to create the overlay.
+            if st.button(pt, key=f"btn_{pt}", type="secondary", use_container_width=True):
                 st.session_state["selected_ptype"] = pt
                 st.rerun()
 
-    # Numerical Inputs (Transactions Removed from UI)
+    # Numerical Inputs (Transactions are SILENTLY handled in the background)
     col_in1, col_in2 = st.columns(2)
     with col_in1:
         field_label("Tenure")
@@ -416,7 +440,7 @@ def prediction_page(data, results):
     # ---------------- RESULT RENDER ----------------
     if predict_clicked:
         if not current_state or not current_area:
-            st.error("Please click a State, and then click an Area on the map before predicting.")
+            st.error("Please select both a State and an Area from the map or address input before predicting.")
             return
 
         model = load_model(recommended)
@@ -424,7 +448,7 @@ def prediction_page(data, results):
         area_key = create_area_key(current_state, current_area)
         ptype = st.session_state["selected_ptype"]
         
-        # We silently inject the median historical transactions into the features dataframe to keep the model happy
+        # Transactions injected silently 
         transactions = int(round(data["Transactions"].median()))
         
         features = pd.DataFrame([{
