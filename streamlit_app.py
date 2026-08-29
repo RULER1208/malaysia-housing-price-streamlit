@@ -32,7 +32,7 @@ st.set_page_config(
 )
 
 # ---------------------------------------------------------------------------
-# CONFIGURATION & REAL-WORLD COORDINATES
+# CONFIGURATION & COORDINATES
 # ---------------------------------------------------------------------------
 APP_DIR = Path(__file__).resolve().parent
 DATA_PATH = APP_DIR / "malaysia_house_price_cleaned_with_area.csv"
@@ -54,7 +54,6 @@ STATE_COORDS = {
     "Putrajaya": [2.9264, 101.6964], "Labuan": [5.2831, 115.2308]
 }
 
-# Pre-calculated real-world coordinates for major towns to bypass API rate limits
 HARDCODED_AREAS = {
     # Johor
     "Skudai": [1.5333, 103.6667], "Tebrau": [1.5833, 103.7500],
@@ -106,10 +105,40 @@ HARDCODED_AREAS = {
 
 st.markdown(r"""
 <style>
-:root { --navy:#15243A; --blue:#2F6FED; --muted:#667085; --border:#E2E7EF; --mono:ui-monospace,"SF Mono",monospace; }
+:root {
+    --bg:#F6F8FB; --card:#FFFFFF; --navy:#15243A; --blue:#2F6FED;
+    --text:#172033; --muted:#667085; --border:#E2E7EF; --green:#18875D;
+    --soft:#EEF4FF; --radius:14px; --shadow:0 6px 22px rgba(24,49,83,.06);
+    --mono:ui-monospace,"SF Mono","Cascadia Mono",Menlo,Consolas,monospace;
+}
+.stApp { background:var(--bg); color:var(--text); }
+html,body,[class*="css"] { font-family:Inter,"Segoe UI",Roboto,Arial,sans-serif }
+h1,h2,h3,h4 { color:var(--navy) }
+.block-container { max-width:1180px; padding-top:12px!important; padding-bottom:2rem; }
+header[data-testid="stHeader"] { background:transparent!important; }
+
+.stTabs [role="tablist"] {
+    display:flex!important; align-items:center!important; gap:8px!important;
+    min-height:62px; padding:0 210px 0 22px!important;
+    background:var(--navy)!important; border-radius:var(--radius)!important;
+    border-bottom:none!important; margin-bottom:22px!important; overflow:visible!important;
+}
+.stTabs [role="tablist"]::before {
+    content:"\2302\00a0\00a0Malaysia Housing Price Estimator";
+    font-size:1.04rem; font-weight:700; color:#FFFFFF; margin-right:24px;
+}
+.stTabs [role="tab"] {
+    height:38px!important; padding:0 18px!important; border-radius:999px!important;
+    color:#B9C8DF!important; font-weight:600; font-size:.92rem;
+    background:transparent!important; border:none!important;
+}
+.stTabs [role="tab"]:hover { color:#FFFFFF!important; background:rgba(255,255,255,.10)!important; }
+.stTabs [role="tab"][aria-selected="true"] { color:var(--navy)!important; background:#FFFFFF!important; }
+.stTabs [data-baseweb="tab-highlight"], .stTabs [data-baseweb="tab-border"] { display:none!important; }
+
 .mh-label { display:flex; font-family:var(--mono); font-size:.72rem; letter-spacing:.1em; color:var(--muted); margin:2px 0 5px 0; text-transform:uppercase; }
 .mh-rule { border:none; border-top:1px solid var(--border); margin:16px 0 14px 0; }
-.mh-result { background:var(--navy); border-radius:14px; padding:26px; box-shadow:0 6px 22px rgba(24,49,83,.06); margin-top:20px; }
+.mh-result { background:var(--navy); border-radius:var(--radius); padding:26px 26px 24px; box-shadow:var(--shadow); margin-top:20px; }
 .mh-result .cap { font-family:var(--mono); font-size:.72rem; letter-spacing:.14em; color:#9FB4D4; text-transform:uppercase; }
 .mh-result .price { font-size:2.7rem; font-weight:750; color:#FFFFFF; margin:8px 0 6px; }
 .mh-result .sub { color:#C9D7EC; font-size:.95rem; }
@@ -117,8 +146,9 @@ st.markdown(r"""
 .mh-stats { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; }
 .mh-stats .k { font-family:var(--mono); font-size:.68rem; letter-spacing:.12em; color:#9FB4D4; text-transform:uppercase; margin-bottom:3px; }
 .mh-stats .v { font-family:var(--mono); font-size:.94rem; font-weight:700; color:#FFFFFF; }
+
+.mh-empty { background:var(--card); border:1px dashed #CFD8E6; border-radius:var(--radius); padding:52px 24px; text-align:center; color:var(--muted); box-shadow:var(--shadow); margin-top:20px;}
 .stButton>button[kind="primary"] { background:var(--blue); border-color:var(--blue); border-radius:11px; min-height:44px;}
-.mh-empty { background:#FFFFFF; border:1px dashed #CFD8E6; border-radius:14px; padding:52px 24px; text-align:center; color:var(--muted); margin-top:20px;}
 </style>
 """, unsafe_allow_html=True)
 
@@ -144,18 +174,16 @@ def get_area_coords(area_name: str, state_name: str):
     if area_name in HARDCODED_AREAS:
         return HARDCODED_AREAS[area_name]
     
-    # Live Geopy fetch for missing areas 
     if HAS_GEOPY:
         try:
             geolocator = Nominatim(user_agent="mh_estimator", timeout=2)
             loc = geolocator.geocode(f"{area_name}, {state_name}, Malaysia")
             if loc: 
-                time.sleep(1) # Prevent Rate Limiting
+                time.sleep(1)
                 return [loc.latitude, loc.longitude]
         except:
             pass
             
-    # Deterministic procedural scatter fallback (prevents markers from stacking on top of each other)
     base_coords = STATE_COORDS.get(state_name, [4.2105, 108.9758])
     hash_val = int(hashlib.md5(area_name.encode('utf-8')).hexdigest(), 16)
     lat_offset = ((hash_val % 1000) / 1000.0 - 0.5) * 0.7
@@ -166,32 +194,55 @@ def field_label(text: str) -> None:
     st.markdown(f'<div class="mh-label">{text}</div>', unsafe_allow_html=True)
 
 def ptype_svg_card(ptype: str, is_selected: bool) -> str:
+    """Returns a specific inline SVG card customized for each property category."""
     color = "#2F6FED" if is_selected else "#667085"
     bg = "#EEF4FF" if is_selected else "#F6F8FB"
     border = "2px solid #2F6FED" if is_selected else "1px solid #E2E7EF"
     
-    if ptype in ["Condominium", "Apartment", "Flat", "Service Residence"]:
-        svg = f'''<svg width="34" height="34" viewBox="0 0 24 24" fill="{color}"><path d="M7 19h10V4H7v15zm2-13h2v2H9V6zm4 0h2v2h-2V6zm-4 3h2v2H9V9zm4 0h2v2h-2V9zm-4 3h2v2H9v-2zm4 0h2v2h-2v-2zm-4 3h2v2H9v-2zm4 0h2v2h-2v-2z"/></svg>'''
-    else:
-        svg = f'''<svg width="34" height="34" viewBox="0 0 24 24" fill="{color}"><path d="M12 3L2 12h3v8h6v-6h2v6h6v-8h3L12 3zm-1 9H9V9h2v3zm4 0h-2V9h2v3z"/></svg>'''
-        
+    svg_icons = {
+        "Bungalow": f'''<svg width="34" height="34" viewBox="0 0 24 24" fill="{color}"><path d="M12 3L2 12h3v8h14v-8h3L12 3zm1 15h-2v-4h2v4zm4-5h-2V9h2v4zM9 9h2v4H9V9z"/></svg>''',
+        "Semi D": f'''<svg width="34" height="34" viewBox="0 0 24 24" fill="{color}"><path d="M2 12l5-4.5V4h4v3.5L16 3l6 5.5V20H2V12zm9 6h-2v-3h2v3zm0-5h-2v-3h2v3zm9 5h-2v-3h2v3zm0-5h-2v-3h2v3z"/></svg>''',
+        "Terrace House": f'''<svg width="34" height="34" viewBox="0 0 24 24" fill="{color}"><path d="M1 11l4-3.5V4h3v2L12 3l4 3.5V4h3v3.5l4 3.5V20H1v-9zm6 7H5v-3h2v3zm7 0h-2v-3h2v3zm7 0h-2v-3h2v3z"/></svg>''',
+        "Town House": f'''<svg width="34" height="34" viewBox="0 0 24 24" fill="{color}"><path d="M17 11V3H7v4H3v13h18V11h-4zm-8-6h6v4H9V5zm-4 8h2v2H5v-2zm0 4h2v2H5v-2zm6 0h2v2h-2v-2zm0-4h2v2h-2v-2zm6 4h2v2h-2v-2zm0-4h2v2h-2v-2zm0-4h2v2h-2V9z"/></svg>''',
+        "Cluster House": f'''<svg width="34" height="34" viewBox="0 0 24 24" fill="{color}"><path d="M3 3h8v8H3V3zm10 0h8v8h-8V3zM3 13h8v8H3v-8zm10 0h8v8h-8v-8z"/></svg>''',
+        "Condominium": f'''<svg width="34" height="34" viewBox="0 0 24 24" fill="{color}"><path d="M19 2H5c-1.1 0-2 .9-2 2v18h18V4c0-1.1-.9-2-2-2zm-8 16H7v-2h4v2zm0-4H7v-2h4v2zm0-4H7V8h4v2zm6 8h-4v-2h4v2zm0-4h-4v-2h4v2zm0-4h-4V8h4v2z"/></svg>''',
+        "Apartment": f'''<svg width="34" height="34" viewBox="0 0 24 24" fill="{color}"><path d="M17 19h2V5h-2v14zm-4 0h2V9h-2v10zm-4 0h2V13H9v6zm-4 0h2v-4H5v4zM3 21h18v2H3v-2z"/></svg>''',
+        "Flat": f'''<svg width="34" height="34" viewBox="0 0 24 24" fill="{color}"><path d="M4 3h16v18H4V3zm3 3v2h2V6H7zm0 4v2h2v-2H7zm0 4v2h2v-2H7zm6-8v2h4V6h-4zm0 4v2h4v-2h-4zm0 4v2h4v-2h-4z"/></svg>''',
+        "Service Residence": f'''<svg width="34" height="34" viewBox="0 0 24 24" fill="{color}"><path d="M12 2l-7 4v16h14V6l-7-4zm5 18H7v-2h10v2zm0-4H7v-2h10v2zm0-4H7v-2h10v2zm-3-5h-4V7h4v2z"/></svg>'''
+    }
+    
+    svg = svg_icons.get(ptype, f'''<svg width="34" height="34" viewBox="0 0 24 24" fill="{color}"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>''')
+    
     return f"""
-    <div style="border:{border}; background:{bg}; border-radius:12px; padding:12px 6px; text-align:center; height:85px; display:flex; flex-direction:column; justify-content:center; align-items:center;">
+    <div style="border:{border}; background:{bg}; border-radius:12px; padding:10px 4px; text-align:center; height:85px; display:flex; flex-direction:column; justify-content:center; align-items:center;">
         {svg}
-        <div style="font-size:0.75rem; font-weight:650; color:{color}; margin-top:6px; line-height:1.1;">{ptype}</div>
+        <div style="font-size:0.75rem; font-weight:650; color:{color}; margin-top:5px; line-height:1.1;">{ptype}</div>
     </div>
     """
 
 # ---------------------------------------------------------------------------
 # LOGIC CONTROLLERS
 # ---------------------------------------------------------------------------
+def reset_location_state():
+    """Explicitly reset state, area, map view, and the user address input."""
+    st.session_state["selected_state"] = None
+    st.session_state["selected_area"] = None
+    st.session_state["map_center"] = [4.2105, 108.9758]
+    st.session_state["map_zoom"] = 6
+    st.session_state["address_input"] = ""
+
 def reset_prediction_form():
+    """Clear all widgets and address input."""
     for key in list(st.session_state.keys()):
         if key.startswith("pred_") or key in ["selected_state", "selected_area", "map_center", "map_zoom", "address_input", "selected_ptype"]:
             del st.session_state[key]
 
+def known_areas_for_state(data: pd.DataFrame, state: str) -> list[str]:
+    subset = data.loc[data["State"] == state, "Area_Clean"].dropna().unique()
+    return sorted({display_name(a) for a in subset})
+
 def analyze_address(data, available_states):
-    """Fired when user types address. Automatically clicks the correct map points behind the scenes."""
+    """Fired when user types an address. Detects State & Area, updates map coordinates."""
     addr = st.session_state.get("address_input", "").lower()
     if not addr: return
 
@@ -203,7 +254,6 @@ def analyze_address(data, available_states):
             break
             
     if matched_state:
-        # STRICT FILTER: Only grab areas that actually exist in the CSV for this state
         valid_areas = data[data["State"] == matched_state]["Area_Clean"].dropna().unique()
         valid_disp_areas = [display_name(a) for a in valid_areas]
         
@@ -232,6 +282,7 @@ def prediction_page(data, results):
     if "selected_state" not in st.session_state: st.session_state["selected_state"] = None
     if "selected_area" not in st.session_state: st.session_state["selected_area"] = None
     if "selected_ptype" not in st.session_state: st.session_state["selected_ptype"] = ptypes[0]
+    if "address_input" not in st.session_state: st.session_state["address_input"] = ""
 
     current_state = st.session_state["selected_state"]
     current_area = st.session_state["selected_area"]
@@ -258,9 +309,8 @@ def prediction_page(data, results):
                     popup=f"STATE:{st_name}"
                 ).add_to(m)
                 
-    # Map Mode 2: State Area Drill-Down (Strictly CSV Data Only)
+    # Map Mode 2: State Area Drill-Down
     else:
-        # Guarantee 100% accuracy: Only fetch areas mapped to this state in the dataset
         all_state_areas = data[data["State"] == current_state]["Area_Clean"].dropna().unique()
         marker_cluster = MarkerCluster(name="Areas").add_to(m)
         
@@ -303,10 +353,7 @@ def prediction_page(data, results):
         st.markdown(f"**State:** {current_state or 'Not Selected'} &nbsp; | &nbsp; **Area:** {current_area or 'Not Selected'}")
     with col_loc2:
         if st.button("Reset Location", use_container_width=True):
-            st.session_state["selected_state"] = None
-            st.session_state["selected_area"] = None
-            st.session_state["map_center"] = [4.2105, 108.9758]
-            st.session_state["map_zoom"] = 6
+            reset_location_state()
             st.rerun()
 
     st.markdown('<hr class="mh-rule">', unsafe_allow_html=True)
@@ -319,7 +366,7 @@ def prediction_page(data, results):
         with svg_cols[i]:
             is_sel = (pt == st.session_state["selected_ptype"])
             st.markdown(ptype_svg_card(pt, is_sel), unsafe_allow_html=True)
-            if st.button(f"Select", key=f"btn_{pt}", use_container_width=True):
+            if st.button("Select", key=f"btn_{pt}", use_container_width=True):
                 st.session_state["selected_ptype"] = pt
                 st.rerun()
 
@@ -383,7 +430,7 @@ def prediction_page(data, results):
 FIGURE_GROUPS = {
     "Data quality": [("fig01_raw_target_distribution.png", "House prices are heavily skewed."), ("fig10_outlier_before_after.png", "Extreme values removed by outlier cleaning.")],
     "Area quality and coverage": [("fig14_top20_areas.png", "The 20 areas with the most records in the dataset."), ("fig16_area_price_distribution.png", "How median price varies across different areas.")],
-    "Location and property": [("fig18_state_counts_clean.png", "Number of records per state after cleaning."),("fig19_state_price_distribution.png", "Median price differs a lot from state to state."), ("fig20_property_type_price.png", "Bungalows and semi-detached homes cost more.")],
+    "Location and property": [("fig18_state_counts_clean.png", "Number of records per state after cleaning."), ("fig19_state_price_distribution.png", "Median price differs a lot from state to state."), ("fig20_property_type_price.png", "Bungalows and semi-detached homes cost more.")],
 }
 
 def insights_page(data):
