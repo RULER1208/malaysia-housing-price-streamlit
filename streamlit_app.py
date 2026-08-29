@@ -833,62 +833,38 @@ div[class*="st-key-btn_"] button p {
     overflow-wrap:anywhere!important;
 }
 
-/* ---------- TENURE: ONE-LINE DIRECT-SELECTION CARDS ---------- */
-div[data-testid="stVerticalBlock"]:has(.tenure-anchor) div[role="radiogroup"] {
-    display:flex!important;
-    flex-direction:row!important;
-    flex-wrap:nowrap!important;
+/* ---------- TENURE: THREE DIRECT-CLICK PILLS ---------- */
+div[class*="st-key-tenure_btn_"] button {
     width:100%!important;
-    gap:10px!important;
-    align-items:stretch!important;
-}
-div[data-testid="stVerticalBlock"]:has(.tenure-anchor) div[role="radiogroup"] > label {
-    flex:1 1 0!important;
-    width:0!important;
-    min-width:0!important;
     min-height:50px!important;
-    margin:0!important;
-    padding:10px 12px!important;
-    display:flex!important;
-    align-items:center!important;
-    justify-content:center!important;
-    background:#FFFFFF!important;
-    border:1px solid #DDE3EC!important;
+    padding:8px 12px!important;
     border-radius:14px!important;
-    box-shadow:0 4px 12px rgba(23,35,59,.04)!important;
-    cursor:pointer!important;
-    transition:border-color .18s ease, background .18s ease, box-shadow .18s ease, transform .18s ease!important;
+    font-size:.95rem!important;
+    font-weight:650!important;
+    line-height:1.2!important;
+    transition:all .16s ease!important;
 }
-div[data-testid="stVerticalBlock"]:has(.tenure-anchor) div[role="radiogroup"] > label:hover {
+div[class*="st-key-tenure_btn_"] button[kind="secondary"] {
+    background:#FFFFFF!important;
+    color:#475569!important;
+    border:1px solid #DDE3EC!important;
+    box-shadow:0 4px 12px rgba(23,35,59,.04)!important;
+}
+div[class*="st-key-tenure_btn_"] button[kind="secondary"]:hover {
+    background:#F8FAFC!important;
     border-color:#B8C5D8!important;
+    color:#243A5A!important;
     transform:translateY(-1px)!important;
 }
-div[data-testid="stVerticalBlock"]:has(.tenure-anchor) div[role="radiogroup"] > label:has(input:checked) {
-    border:1.5px solid #76BE9E!important;
+div[class*="st-key-tenure_btn_"] button[kind="primary"] {
     background:var(--green-soft)!important;
+    color:var(--green-dark)!important;
+    border:1.5px solid #76BE9E!important;
     box-shadow:0 7px 16px rgba(47,143,104,.12)!important;
 }
-div[data-testid="stVerticalBlock"]:has(.tenure-anchor) div[role="radiogroup"] p {
+div[class*="st-key-tenure_btn_"] button p {
     margin:0!important;
-    text-align:center!important;
-    font-weight:650!important;
-    color:#475569!important;
     white-space:nowrap!important;
-}
-div[data-testid="stVerticalBlock"]:has(.tenure-anchor) div[role="radiogroup"] > label:has(input:checked) p {
-    color:var(--green-dark)!important;
-}
-div[data-testid="stVerticalBlock"]:has(.tenure-anchor) input[type="radio"] {
-    position:absolute!important;
-    opacity:0!important;
-    width:0!important;
-    height:0!important;
-    pointer-events:none!important;
-}
-/* Remove the default blue radio circle completely. */
-div[data-testid="stVerticalBlock"]:has(.tenure-anchor) div[role="radiogroup"] > label > div:first-child:not([data-testid="stMarkdownContainer"]),
-div[data-testid="stVerticalBlock"]:has(.tenure-anchor) label[data-baseweb="radio"] > div:first-child {
-    display:none!important;
 }
 
 /* ---------- INPUTS / BUTTONS ---------- */
@@ -1231,6 +1207,8 @@ def prediction_page(data, results):
     if "selected_state" not in st.session_state: st.session_state["selected_state"] = None
     if "selected_area" not in st.session_state: st.session_state["selected_area"] = None
     if "selected_ptype" not in st.session_state: st.session_state["selected_ptype"] = ptypes[0]
+    tenure_options = sorted(data["Tenure"].dropna().unique())
+    if "selected_tenure" not in st.session_state: st.session_state["selected_tenure"] = tenure_options[0]
     if "address_input" not in st.session_state: st.session_state["address_input"] = ""
 
     current_state = st.session_state["selected_state"]
@@ -1353,8 +1331,19 @@ def prediction_page(data, results):
     col_in1, col_in2 = st.columns(2)
     with col_in1:
         field_label("Tenure")
-        st.markdown("<div class='tenure-anchor'></div>", unsafe_allow_html=True)
-        tenure = st.radio("Tenure", sorted(data["Tenure"].unique()), key="pred_tenure", label_visibility="collapsed", horizontal=True)
+        tenure_cols = st.columns(len(tenure_options), gap="small")
+        for idx, tenure_option in enumerate(tenure_options):
+            with tenure_cols[idx]:
+                is_tenure_selected = (tenure_option == st.session_state["selected_tenure"])
+                if st.button(
+                    tenure_option,
+                    key=f"tenure_btn_{tenure_option}",
+                    type="primary" if is_tenure_selected else "secondary",
+                    use_container_width=True,
+                ):
+                    st.session_state["selected_tenure"] = tenure_option
+                    st.rerun()
+        tenure = st.session_state["selected_tenure"]
     with col_in2:
         field_label("Median price per sq ft (RM)")
         psf = st.number_input("PSF", min_value=1, step=10, value=int(round(data["Median_PSF"].median())), key="pred_psf", label_visibility="collapsed")
