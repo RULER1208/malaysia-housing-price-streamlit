@@ -55,9 +55,9 @@ STATE_COORDS = {
     "Putrajaya": [2.9264, 101.6964], "Labuan": [5.2831, 115.2308]
 }
 
-# Pre-calculated real-world coordinates for major towns to bypass API rate limits
+# Massively expanded pre-calculated real-world coordinates for exact map pins
 HARDCODED_AREAS = {
-    # Selangor (Expanded for high accuracy)
+    # Selangor
     "Sekinchan": [3.5053, 101.1036], "Tanjong Karang": [3.4267, 101.1773],
     "Pandamaran": [3.0132, 101.4172], "Kuala Selangor": [3.3364, 101.2504],
     "Sabak Bernam": [3.7667, 100.9833], "Sungai Besar": [3.6833, 100.9833],
@@ -66,20 +66,48 @@ HARDCODED_AREAS = {
     "Klang": [3.0449, 101.4456], "Puchong": [3.0246, 101.6168], 
     "Kajang": [2.9935, 101.7892], "Cheras": [3.1062, 101.7690],
     "Rawang": [3.3213, 101.5822], "Cyberjaya": [2.9228, 101.6572],
+    "Setia Alam": [3.1110, 101.4450], "Bukit Beruntung": [3.3100, 101.5540],
+    "Bandar Saujana Putra": [2.9490, 101.5790], "Semenyih": [2.9480, 101.8440],
+    "Bangi": [2.9200, 101.7800], "Serdang": [3.0220, 101.7100],
+    "Batu Caves": [3.2380, 101.6810], "Ampang": [3.1490, 101.7610],
+    "Sungai Buloh": [3.2080, 101.5790], "Gombak": [3.2200, 101.7000],
+    "Sepang": [2.6865, 101.7483], "Selayang": [3.2505, 101.6448],
+    # Kuala Lumpur
+    "Bukit Bintang": [3.1460, 101.7110], "Setapak": [3.1895, 101.7058], 
+    "Kepong": [3.2120, 101.6358], "Mont Kiara": [3.1672, 101.6508], 
+    "Bukit Jalil": [3.0578, 101.6885], "Wangsa Maju": [3.2045, 101.7348], 
+    "Bangsar": [3.1253, 101.6749], "Old Klang Road": [3.0830, 101.6740],
     # Johor
     "Skudai": [1.5333, 103.6667], "Tebrau": [1.5833, 103.7500], 
     "Pasir Gudang": [1.4703, 103.8966], "Kulai": [1.6561, 103.6023], 
     "Johor Bahru": [1.4927, 103.7414], "Batu Pahat": [1.8548, 102.9325],
     "Kluang": [2.0251, 103.3328], "Muar": [2.0442, 102.5689], 
+    "Pontian": [1.4883, 103.3888], "Kota Tinggi": [1.7381, 103.8999],
+    "Segamat": [2.5144, 102.8159], "Mersing": [2.4312, 103.8361],
     # Perak
     "Tapah": [4.2000, 101.2600], "Ipoh": [4.5975, 101.0901],
     "Taiping": [4.8500, 100.7333], "Teluk Intan": [4.0259, 101.0213],
-    # Penang & Others
+    "Sitiawan": [4.2144, 100.6974], "Seri Manjung": [4.1950, 100.6650], 
+    "Kampar": [4.3000, 101.1500], "Lumut": [4.2333, 100.6333],
+    "Chenderiang": [4.2667, 101.2333],
+    # Penang
     "Georgetown": [5.4141, 100.3288], "Butterworth": [5.3995, 100.3638], 
-    "Bayan Lepas": [5.2952, 100.2588], "Bemban": [2.2667, 102.3667], 
-    "Jasin": [2.3130, 102.4312], "Seremban": [2.7297, 101.9381], 
-    "Alor Setar": [6.1210, 100.3601], "Kuantan": [3.8077, 103.3260], 
-    "Kota Kinabalu": [5.9804, 116.0735], "Kuching": [1.5533, 110.3592]
+    "Bayan Lepas": [5.2952, 100.2588], "Tasek Gelugor": [5.4833, 100.4833],
+    "Bukit Mertajam": [5.3629, 100.4666], "Perai": [5.3833, 100.3833],
+    "Batu Kawan": [5.2652, 100.4283], "Nibong Tebal": [5.1667, 100.4667],
+    "Kepala Batas": [5.5167, 100.4333],
+    # Melaka & Negeri Sembilan
+    "Bemban": [2.2667, 102.3667], "Jasin": [2.3130, 102.4312],
+    "Ayer Keroh": [2.2642, 102.2858], "Alor Gajah": [2.3833, 102.2000],
+    "Seremban": [2.7297, 101.9381], "Port Dickson": [2.5228, 101.7959],
+    "Nilai": [2.8167, 101.8000],
+    # Kedah, East Coast, Borneo
+    "Alor Setar": [6.1210, 100.3601], "Sungai Petani": [5.6436, 100.4897],
+    "Kulim": [5.3667, 100.5500], "Kuantan": [3.8077, 103.3260], 
+    "Temerloh": [3.4506, 102.4168], "Cameron Highlands": [4.4721, 101.3801],
+    "Kota Bharu": [6.1254, 102.2381], "Kuala Terengganu": [5.3302, 103.1408],
+    "Kemaman": [4.2333, 103.3333], "Kota Kinabalu": [5.9804, 116.0735], 
+    "Kuching": [1.5533, 110.3592]
 }
 
 # ---------------------------------------------------------------------------
@@ -116,6 +144,18 @@ header[data-testid="stHeader"] { background:transparent!important; }
 .mh-stats .v { font-family:var(--mono); font-size:.94rem; font-weight:700; color:#FFFFFF; }
 .stButton>button[kind="primary"] { background:var(--blue); border-color:var(--blue); border-radius:11px; min-height:44px;}
 .mh-empty { background:#FFFFFF; border:1px dashed #CFD8E6; border-radius:14px; padding:52px 24px; text-align:center; color:var(--muted); margin-top:20px;}
+
+/* CSS HACK: Stretches the Streamlit button over the SVG box to make it directly clickable */
+div[data-testid="stHorizontalBlock"]:has(> div:nth-child(5)) div[data-testid="column"] {
+    position: relative;
+}
+div[data-testid="stHorizontalBlock"]:has(> div:nth-child(5)) div[data-testid="stButton"] {
+    position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+    opacity: 0; z-index: 100;
+}
+div[data-testid="stHorizontalBlock"]:has(> div:nth-child(5)) button {
+    width: 100%; height: 100%; cursor: pointer;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -141,17 +181,26 @@ def get_area_coords(area_name: str, state_name: str):
     if area_name in HARDCODED_AREAS:
         return HARDCODED_AREAS[area_name]
     
-    # Deterministic procedural scatter (tightly clustered inland around state center to prevent ocean floating)
+    if HAS_GEOPY:
+        try:
+            geolocator = Nominatim(user_agent="mh_estimator", timeout=2)
+            loc = geolocator.geocode(f"{area_name}, {state_name}, Malaysia")
+            if loc: 
+                time.sleep(0.5) 
+                return [loc.latitude, loc.longitude]
+        except: pass
+            
+    # Deterministic procedural scatter (tightly clustered inland around state center)
     base_coords = STATE_COORDS.get(state_name, [4.2105, 108.9758])
     hash_val = int(hashlib.md5(area_name.encode('utf-8')).hexdigest(), 16)
-    lat_offset = ((hash_val % 100) / 100.0 - 0.5) * 0.5
-    lon_offset = (((hash_val // 100) % 100) / 100.0 - 0.5) * 0.5
+    lat_offset = ((hash_val % 100) / 100.0 - 0.5) * 0.4
+    lon_offset = (((hash_val // 100) % 100) / 100.0 - 0.5) * 0.4
     return [base_coords[0] + lat_offset, base_coords[1] + lon_offset]
 
 def field_label(text: str) -> None:
     st.markdown(f'<div class="mh-label">{text}</div>', unsafe_allow_html=True)
 
-def ptype_svg_card(ptype: str, is_selected: bool) -> str:
+def get_colored_svg(ptype: str, is_selected: bool) -> str:
     """Returns a vibrant, multi-colored SVG tailored to property types."""
     c_roof = "#E63946"  
     c_wall = "#F1FAEE"  
@@ -178,12 +227,8 @@ def ptype_svg_card(ptype: str, is_selected: bool) -> str:
     else:
         svg = f'<path fill="{c_frame}" d="M12 3L2 12h3v10h14V12h3L12 3z"/><rect fill="{c_wall}" x="5" y="12" width="14" height="10"/><rect fill="{c_accent}" x="10" y="15" width="4" height="7"/>'
         
-    return f"""
-    <div style="border:{border}; background:{bg}; border-radius:12px; padding:15px 4px; text-align:center; height:95px; display:flex; flex-direction:column; justify-content:center; align-items:center;">
-        <svg style="{filter_style} transition: all 0.2s ease-in-out;" width="42" height="42" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">{svg}</svg>
-        <div style="font-size:0.75rem; font-weight:650; color:{txt_color}; margin-top:8px; line-height:1.1;">{ptype}</div>
-    </div>
-    """
+    # Condensing into a single line string prevents Streamlit's Markdown parser from breaking the HTML with <p> tags
+    return f'<div style="border:{border}; background:{bg}; border-radius:12px; padding:15px 4px; text-align:center; height:95px; display:flex; flex-direction:column; justify-content:center; align-items:center;"><svg style="{filter_style} transition: all 0.2s ease-in-out;" width="42" height="42" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">{svg}</svg><div style="font-size:0.75rem; font-weight:650; color:{txt_color}; margin-top:8px; line-height:1.1;">{ptype}</div></div>'
 
 # ---------------------------------------------------------------------------
 # LOGIC CONTROLLERS
@@ -341,43 +386,23 @@ def prediction_page(data, results):
     st.markdown('<hr class="mh-rule">', unsafe_allow_html=True)
     st.markdown("<h3 style='margin-top:0;'>🏡 2. Property Details</h3>", unsafe_allow_html=True)
 
-    # ---------------- UNIVERSAL CSS BUTTON OVERLAY HACK ----------------
+    # Interactive SVG Grid via CSS Overlay (Fixes leaking </div> issue)
     field_label("Select Property Type")
     svg_cols = st.columns(len(ptypes))
-    
     for i, pt in enumerate(ptypes):
         with svg_cols[i]:
             is_sel = (pt == st.session_state["selected_ptype"])
             
-            # Step 1: Render a Zero-Height Container holding the SVG Image
-            # The SVG spills downward visually, but takes up 0 layout space.
-            st.markdown(f'''
-            <div class="ptype-card-wrapper-{i}" style="height: 0px; overflow: visible; position: relative; z-index: 1;">
-                {ptype_svg_card(pt, is_sel)}
-            </div>
-            ''', unsafe_allow_html=True)
+            # Use single-line HTML structure to prevent Markdown parser from breaking the </div> tags
+            html_str = f'<div class="ptype-card-wrapper-{i}" style="height: 0px; overflow: visible; position: relative; z-index: 1;">{get_colored_svg(pt, is_sel)}</div>'
+            st.markdown(html_str, unsafe_allow_html=True)
             
-            # Step 2: Render CSS styling the specific Streamlit button immediately following the wrapper
-            st.markdown(f'''
-            <style>
-            .ptype-card-wrapper-{i} + div[data-testid="stButton"] button {{
-                background: transparent !important;
-                border: none !important;
-                color: transparent !important;
-                box-shadow: none !important;
-                height: 95px !important;
-                z-index: 99 !important;
-            }}
-            </style>
-            ''', unsafe_allow_html=True)
-            
-            # Step 3: Render the Native Streamlit button. 
-            # Because of the CSS above, it renders as a 95px tall completely invisible box exactly over our SVG.
-            if st.button(pt, key=f"btn_{pt}", use_container_width=True):
+            # The invisible Streamlit button covers the SVG 
+            if st.button(" ", key=f"btn_{pt}", use_container_width=True):
                 st.session_state["selected_ptype"] = pt
                 st.rerun()
 
-    # Numerical Inputs (Transactions Removed)
+    # Numerical Inputs (Transactions Removed from UI)
     col_in1, col_in2 = st.columns(2)
     with col_in1:
         field_label("Tenure")
@@ -392,7 +417,7 @@ def prediction_page(data, results):
     # ---------------- RESULT RENDER ----------------
     if predict_clicked:
         if not current_state or not current_area:
-            st.error("Please select both a State and an Area from the map or address input before predicting.")
+            st.error("Please click a State, and then click an Area on the map before predicting.")
             return
 
         model = load_model(recommended)
