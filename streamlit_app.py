@@ -1,4 +1,4 @@
-```python
+
 """
 BMDS2003 Data Science - Deployment Prototype
 Malaysia Housing Median Price Estimator
