@@ -309,7 +309,7 @@ def prediction_page(data, results):
 
     available_states = sorted(data["State"].unique())
     if "selected_state" not in st.session_state or st.session_state["selected_state"] not in available_states:
-        st.session_state["selected_state"] = available_states[0]
+        st.session_state["selected_state"] = "Selangor" # Default starting state
 
     left, right = st.columns([1, 1], gap="large")
 
@@ -317,17 +317,18 @@ def prediction_page(data, results):
     with left:
         with st.container(border=True):
 
+            current_state = st.session_state["selected_state"]
             field_label("Select State", "Click a marker point on the map")
             
-            # Map configuration using reliable OpenStreetMap tiles
+            # Map configuration: Dynamically zoom in on the currently selected state
+            map_center = STATE_COORDS.get(current_state, [4.2105, 108.9758])
             m = folium.Map(
-                location=[4.2105, 108.9758],
-                zoom_start=5,
+                location=map_center,
+                zoom_start=7,  # Zoomed in to focus on the selected state
                 tiles="OpenStreetMap"
             )
 
             # Draw high-contrast clickable circle markers for every state
-            current_state = st.session_state["selected_state"]
             for st_name in available_states:
                 if st_name in STATE_COORDS:
                     is_selected = (st_name == current_state)
@@ -352,20 +353,12 @@ def prediction_page(data, results):
                     st.session_state["selected_state"] = clicked_st
                     st.rerun()
 
-            # State selector dropdown (kept in sync with map clicks)
-            state_idx = available_states.index(st.session_state["selected_state"])
-            state = st.selectbox(
-                "State", 
-                available_states, 
-                index=state_idx, 
-                key="pred_state_dropdown"
-            )
-            if state != st.session_state["selected_state"]:
-                st.session_state["selected_state"] = state
-                st.rerun()
-
+            # Display the selected state cleanly without a dropdown
+            st.markdown(f"<div style='font-size:1.05rem; font-weight:600; color:var(--navy); margin-bottom:12px;'>Selected State: {current_state}</div>", unsafe_allow_html=True)
+            
+            # Area selection dropdown dynamically linked to the selected state
             field_label("Area")
-            area_options = [NO_AREA] + known_areas_for_state(data, state)
+            area_options = [NO_AREA] + known_areas_for_state(data, current_state)
             if SELECTBOX_ACCEPTS_NEW:
                 area_choice = st.selectbox(
                     "Area", area_options, key="pred_area", label_visibility="collapsed",
@@ -400,8 +393,8 @@ def prediction_page(data, results):
                     key="pred_tenure", label_visibility="collapsed"
                 )
 
-            known_area, _ = resolve_known_area(data, state, area_text)
-            reference = derive_reference(data, state, known_area, ptype, tenure)
+            known_area, _ = resolve_known_area(data, current_state, area_text)
+            reference = derive_reference(data, current_state, known_area, ptype, tenure)
 
             st.markdown('<hr class="mh-rule">', unsafe_allow_html=True)
 
@@ -458,9 +451,9 @@ def prediction_page(data, results):
             return
 
         model = load_model(model_name)
-        area_key = create_area_key(state, area_text)
+        area_key = create_area_key(current_state, area_text)
         features = pd.DataFrame([{
-            "State": state, "Area_Key": area_key, "Tenure": tenure,
+            "State": current_state, "Area_Key": area_key, "Tenure": tenure,
             "Primary_Type": ptype, "Median_PSF": psf,
             "Transactions": transactions
         }])[MODEL_FEATURES]
@@ -474,7 +467,7 @@ def prediction_page(data, results):
         except Exception:
             area_seen = bool(known_area)
 
-        location = f"{area_text.strip()}, {state}" if area_text.strip() else state
+        location = f"{area_text.strip()}, {current_state}" if area_text.strip() else current_state
         st.markdown(f'''
         <div class="mh-result">
             <div class="cap">Estimated median price</div>
