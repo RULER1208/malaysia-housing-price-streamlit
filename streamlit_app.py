@@ -631,7 +631,7 @@ HARDCODED_AREAS = {
     "Perak": {
         "Tapah": [4.2000, 101.2600], "Ipoh": [4.5975, 101.0901],
         "Taiping": [4.8500, 100.7333], "Teluk Intan": [4.0259, 101.0213],
-        "Sitiawan": [4.2144, 100.6974], "Seri Manjung": [4.1950, 100.6650], 
+        "Sitiawan": [4.2144, 100.6974], "Seri Manjong": [4.1950, 100.6650], 
         "Kampar": [4.3000, 101.1500], "Lumut": [4.2333, 100.6333],
         "Chenderiang": [4.2667, 101.2333],
     },
@@ -1003,6 +1003,26 @@ button[kind="secondary"] { border-radius:14px!important; }
 }
 .mh-empty .icon { font-size:1.7rem; color:var(--blue); margin-bottom:7px; }
 
+/* ---------- MARKET EXPLORER ---------- */
+.mh-panel {
+    background:#FFFFFF;
+    border:1px solid var(--line);
+    border-radius:20px;
+    padding:20px 22px;
+    box-shadow:0 8px 22px rgba(23,35,59,.06);
+    margin-bottom:18px;
+}
+.mh-metric-row { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-top:4px; }
+.mh-metric {
+    background:linear-gradient(135deg, #17233B 0%, #22324E 100%);
+    border-radius:16px;
+    padding:15px 17px;
+    border:1px solid rgba(255,255,255,.08);
+}
+.mh-metric .k { font-family:var(--mono); font-size:.65rem; letter-spacing:.12em; color:#B8C5DD; text-transform:uppercase; }
+.mh-metric .v { font-family:var(--mono); font-size:1.28rem; font-weight:800; color:#FFFFFF; margin-top:6px; }
+.mh-search-row { display:flex; gap:10px; align-items:center; margin-bottom:2px; }
+
 /* ---------- FOOTER ---------- */
 .mh-footer {
     margin-top:36px;
@@ -1026,6 +1046,7 @@ button[kind="secondary"] { border-radius:14px!important; }
     .stTabs [role="tablist"] { flex-wrap:wrap!important; }
     .stTabs [role="tablist"]::before { width:100%; min-width:0; }
     .mh-stats { grid-template-columns:1fr; }
+    .mh-metric-row { grid-template-columns:1fr 1fr; }
     .mh-chip { width:100%; justify-content:center; }
     .mh-result-top { flex-direction:column; }
     .mh-result-badge { width:100%; min-width:auto; }
@@ -1033,6 +1054,47 @@ button[kind="secondary"] { border-radius:14px!important; }
 }
 </style>
 """, unsafe_allow_html=True)
+
+# ---------------------------------------------------------------------------
+# POSTCODE -> STATE LOOKUP (offline, deterministic — no network dependency)
+# ---------------------------------------------------------------------------
+# Standard Malaysian postcode prefix ranges (first two digits). Used as the
+# primary signal for address/postcode detection so the feature keeps working
+# even when there is no internet access or the geocoding service is
+# unreachable/rate-limited.
+POSTCODE_STATE_RANGES = [
+    (1, 2, "Perlis"),
+    (5, 9, "Kedah"),
+    (10, 14, "Penang"),
+    (15, 18, "Kelantan"),
+    (20, 24, "Terengganu"),
+    (25, 28, "Pahang"),
+    (30, 36, "Perak"),
+    (39, 39, "Pahang"),          # Cameron Highlands
+    (40, 48, "Selangor"),
+    (49, 49, "Selangor"),
+    (50, 60, "Kuala Lumpur"),
+    (62, 62, "Putrajaya"),
+    (63, 64, "Selangor"),        # Cyberjaya / Sepang
+    (68, 68, "Kuala Lumpur"),
+    (70, 73, "Negeri Sembilan"),
+    (75, 78, "Melaka"),
+    (79, 86, "Johor"),
+    (87, 87, "Labuan"),
+    (88, 91, "Sabah"),
+    (93, 98, "Sarawak"),
+]
+
+
+def get_state_from_postcode(postcode: str):
+    """Deterministic offline lookup — always responds, regardless of network."""
+    if not postcode or len(postcode) != 5 or not postcode.isdigit():
+        return None
+    prefix = int(postcode[:2])
+    for lo, hi, state in POSTCODE_STATE_RANGES:
+        if lo <= prefix <= hi:
+            return state
+    return None
 
 # ---------------------------------------------------------------------------
 # DATA & MAP HELPERS
@@ -1166,47 +1228,72 @@ def reset_location_state():
     st.session_state["selected_area"] = None
     st.session_state["map_center"] = [4.2105, 108.9758]
     st.session_state["map_zoom"] = 6
-    st.session_state["address_input"] = "" 
+    st.session_state["address_input"] = ""
+    st.session_state["address_feedback"] = None
+    st.session_state["last_prediction"] = None
 
 def analyze_address(available_states):
-    addr = st.session_state.get("address_input", "").lower()
-    if not addr: return
+    addr_raw = st.session_state.get("address_input", "")
+    addr = addr_raw.lower()
+    if not addr:
+        st.session_state["address_feedback"] = None
+        return
 
     matched_state = None
     matched_area = None
-    
-    postcode_match = re.search(r'\b\d{5}\b', addr)
-    if postcode_match and HAS_GEOPY:
-        postcode = postcode_match.group()
-        try:
-            geolocator = Nominatim(user_agent="mh_estimator", timeout=3)
-            loc = geolocator.geocode(f"{postcode}, Malaysia", addressdetails=True)
-            if loc and 'address' in loc.raw:
-                addr_details = loc.raw['address']
-                raw_state = addr_details.get('state', '').lower()
-                raw_area = addr_details.get('town', addr_details.get('city', addr_details.get('county', addr_details.get('suburb', ''))))
-                
-                for st_name in available_states:
-                    if st_name.lower() in raw_state:
-                        matched_state = st_name
-                        break
-                if raw_area and matched_state:
-                    valid_areas = get_areas_for_state(matched_state)
-                    normalized = {clean_area_name(a): a for a in valid_areas}
-                    matched_area = normalized.get(clean_area_name(raw_area))
-        except: pass
+    match_source = None
 
+    # 1) Deterministic offline postcode lookup — this always responds, even
+    #    with no internet connection, so typing a postcode + Enter never
+    #    appears to silently do nothing.
+    postcode_match = re.search(r'\b\d{5}\b', addr)
+    if postcode_match:
+        postcode = postcode_match.group()
+        pc_state = get_state_from_postcode(postcode)
+        if pc_state:
+            matched_state = pc_state
+            match_source = "postcode"
+
+        # 2) Optional refinement: try live geocoding for area-level detail.
+        #    Any failure (no internet, rate limit, timeout) is caught and
+        #    simply falls back to the postcode-only match above.
+        if HAS_GEOPY:
+            try:
+                geolocator = Nominatim(user_agent="mh_estimator", timeout=3)
+                loc = geolocator.geocode(f"{postcode}, Malaysia", addressdetails=True)
+                if loc and 'address' in loc.raw:
+                    addr_details = loc.raw['address']
+                    raw_state = addr_details.get('state', '').lower()
+                    raw_area = addr_details.get('town', addr_details.get('city', addr_details.get('county', addr_details.get('suburb', ''))))
+
+                    for st_name in available_states:
+                        if st_name.lower() in raw_state:
+                            matched_state = st_name
+                            break
+                    if raw_area and matched_state:
+                        valid_areas = get_areas_for_state(matched_state)
+                        normalized = {clean_area_name(a): a for a in valid_areas}
+                        found_area = normalized.get(clean_area_name(raw_area))
+                        if found_area:
+                            matched_area = found_area
+                            match_source = "geocode"
+            except Exception:
+                pass
+
+    # 3) Fall back to plain text matching against state/area names.
     if not matched_state:
         for st_name in sorted(available_states, key=len, reverse=True):
             if st_name.lower() in addr:
                 matched_state = st_name
+                match_source = "text"
                 break
-                
+
     if matched_state and not matched_area:
         valid_areas = get_areas_for_state(matched_state)
         for a in sorted(valid_areas, key=len, reverse=True):
             if a.lower() in addr:
                 matched_area = a
+                match_source = match_source or "text"
                 break
 
     if matched_state:
@@ -1217,10 +1304,19 @@ def analyze_address(available_states):
             if coords:
                 st.session_state["map_center"] = coords
                 st.session_state["map_zoom"] = 12
+            st.session_state["address_feedback"] = ("success", f"Matched **{matched_area}, {matched_state}**.")
         else:
             st.session_state["selected_area"] = None
             st.session_state["map_center"] = STATE_COORDS.get(matched_state, [4.2105, 108.9758])
             st.session_state["map_zoom"] = 8
+            st.session_state["address_feedback"] = (
+                "info", f"Matched state **{matched_state}**. Pick an area on the map below."
+            )
+    else:
+        st.session_state["address_feedback"] = (
+            "warning",
+            "Couldn't recognise that address or postcode — please select your location on the map instead.",
+        )
 
 # ---------------------------------------------------------------------------
 # PAGE 1 - PREDICTION INTERFACE
@@ -1236,6 +1332,8 @@ def prediction_page(data, results):
     tenure_options = sorted(data["Tenure"].dropna().unique())
     if "selected_tenure" not in st.session_state: st.session_state["selected_tenure"] = tenure_options[0]
     if "address_input" not in st.session_state: st.session_state["address_input"] = ""
+    if "address_feedback" not in st.session_state: st.session_state["address_feedback"] = None
+    if "last_prediction" not in st.session_state: st.session_state["last_prediction"] = None
 
     current_state = st.session_state["selected_state"]
     current_area = st.session_state["selected_area"]
@@ -1251,6 +1349,16 @@ def prediction_page(data, results):
     st.text_input("Enter your address or postcode to auto-detect location, or click the map below:", 
                   placeholder="e.g. 45400 or Sekinchan, Selangor",
                   key="address_input", on_change=analyze_address, args=(available_states,))
+
+    feedback = st.session_state.get("address_feedback")
+    if feedback:
+        kind, msg = feedback
+        if kind == "success":
+            st.success(msg, icon="✅")
+        elif kind == "info":
+            st.info(msg, icon="ℹ️")
+        else:
+            st.warning(msg, icon="⚠️")
 
     map_center = st.session_state.get("map_center", [4.2105, 108.9758] if not current_state else STATE_COORDS.get(current_state, [4.2105, 108.9758]))
     map_zoom = st.session_state.get("map_zoom", 6 if not current_state else 9)
@@ -1385,28 +1493,46 @@ def prediction_page(data, results):
     predict_clicked = st.button("Generate Price Estimate  →", type="primary", use_container_width=True)
 
     # ---------------- RESULT RENDER ----------------
+    # The prediction is written into session_state so that it survives later
+    # reruns that are not caused by this button (e.g. the map component or any
+    # other widget interaction). Previously the result only rendered on the
+    # exact rerun where predict_clicked was True, so it visibly flashed and
+    # then reverted to the empty placeholder on the very next rerun.
     if predict_clicked:
         if not current_state or not current_area:
             st.error("Please select both a State and an Area from the map or address input before predicting.")
-            return
+        else:
+            model = load_model(recommended)
+            from area_preprocessing import create_area_key
+            area_key = create_area_key(current_state, current_area)
+            ptype = st.session_state["selected_ptype"]
+            transactions = int(round(data["Transactions"].median()))
 
-        model = load_model(recommended)
-        from area_preprocessing import create_area_key
-        area_key = create_area_key(current_state, current_area)
-        ptype = st.session_state["selected_ptype"]
-        transactions = int(round(data["Transactions"].median()))
+            features = pd.DataFrame([{
+                "State": current_state, "Area_Key": area_key, "Tenure": tenure,
+                "Primary_Type": ptype, "Median_PSF": psf, "Transactions": transactions
+            }])[MODEL_FEATURES]
 
-        features = pd.DataFrame([{
-            "State": current_state, "Area_Key": area_key, "Tenure": tenure,
-            "Primary_Type": ptype, "Median_PSF": psf, "Transactions": transactions
-        }])[MODEL_FEATURES]
+            with st.spinner("Calculating estimate..."):
+                prediction = float(model.predict(features)[0])
 
-        with st.spinner("Calculating estimate..."):
-            prediction = float(model.predict(features)[0])
+            metrics = results[results["Model"] == recommended].iloc[0]
+            st.session_state["last_prediction"] = {
+                "prediction": prediction,
+                "state": current_state,
+                "area": current_area,
+                "ptype": ptype,
+                "tenure": tenure,
+                "psf": psf,
+                "model_name": recommended,
+                "mae_test": float(metrics["MAE_test"]),
+                "r2_test": float(metrics["R2_test"]),
+                "dataset_supported": is_dataset_area(current_state, current_area),
+            }
 
-        metrics = results[results["Model"] == recommended].iloc[0]
-        dataset_supported = is_dataset_area(current_state, current_area)
-        coverage_note = "" if dataset_supported else (
+    saved = st.session_state.get("last_prediction")
+    if saved:
+        coverage_note = "" if saved["dataset_supported"] else (
             '<div class="note">This location is part of the nationwide Malaysia map but is not directly present in the 2025 housing dataset. '
             'The model therefore uses its unseen / infrequent-area handling for this estimate.</div>'
         )
@@ -1415,23 +1541,22 @@ def prediction_page(data, results):
             <div class="mh-result-top">
                 <div>
                     <div class="cap">Estimated median price</div>
-                    <div class="price">RM {prediction:,.0f}</div>
-                    <div class="sub">{current_area}, {current_state} · {ptype} · {tenure}</div>
+                    <div class="price">RM {saved["prediction"]:,.0f}</div>
+                    <div class="sub">{saved["area"]}, {saved["state"]} · {saved["ptype"]} · {saved["tenure"]}</div>
                     {coverage_note}
                 </div>
                 <div class="mh-result-badge">
                     <div class="kicker">Recommended model</div>
-                    <div class="model">{recommended}</div>
+                    <div class="model">{saved["model_name"]}</div>
                 </div>
             </div>
             <div class="rule"></div>
             <div class="mh-stats">
-                <div class="mh-stat"><div class="k">Test MAE</div><div class="v">RM {metrics['MAE_test']/1000:,.1f}K</div></div>
-                <div class="mh-stat"><div class="k">Test R²</div><div class="v">{metrics['R2_test']:.3f}</div></div>
-                <div class="mh-stat"><div class="k">Market PSF Input</div><div class="v">RM {psf:,.0f}</div></div>
+                <div class="mh-stat"><div class="k">Test MAE</div><div class="v">RM {saved["mae_test"]/1000:,.1f}K</div></div>
+                <div class="mh-stat"><div class="k">Test R²</div><div class="v">{saved["r2_test"]:.3f}</div></div>
+                <div class="mh-stat"><div class="k">Market PSF Input</div><div class="v">RM {saved["psf"]:,.0f}</div></div>
             </div>
         </div>''', unsafe_allow_html=True)
-
     else:
         st.markdown(
             '<div class="mh-empty"><div class="icon">⌂</div>'
@@ -1453,27 +1578,67 @@ def insights_page(data):
     view = st.radio("View", ["Market Explorer", "Visual Insights"], horizontal=True, label_visibility="collapsed")
     if view == "Market Explorer":
         st.markdown("#### Historical 2025 dataset exploration")
+
+        st.markdown("<div class='mh-panel'>", unsafe_allow_html=True)
+        st.markdown("<div class='mh-search-row'>", unsafe_allow_html=True)
+        search_col, reset_col = st.columns([5, 1.2])
+        with search_col:
+            area_search = st.text_input(
+                "Search area", placeholder="🔍 Search for an area name…", label_visibility="collapsed", key="explorer_search"
+            )
+        with reset_col:
+            reset_filters = st.button("Reset filters", use_container_width=True, key="explorer_reset")
+        st.markdown("</div>", unsafe_allow_html=True)
+
+        if reset_filters:
+            for k in ("explorer_state", "explorer_area", "explorer_ptype", "explorer_tenure", "explorer_search"):
+                st.session_state.pop(k, None)
+            st.rerun()
+
         a, b, c, d = st.columns(4)
-        state = a.selectbox("State", ["All"] + sorted(data["State"].unique()))
-        area = b.selectbox("Area", ["All"] + sorted(data["Area_Clean"].unique()))
-        ptype = c.selectbox("Property type", ["All"] + sorted(data["Primary_Type"].unique()))
-        tenure = d.selectbox("Tenure", ["All"] + sorted(data["Tenure"].unique()))
-        
+        state = a.selectbox("State", ["All"] + sorted(data["State"].unique()), key="explorer_state")
+        area_options = ["All"] + sorted(data["Area_Clean"].unique())
+        area = b.selectbox("Area", area_options, key="explorer_area")
+        ptype = c.selectbox("Property type", ["All"] + sorted(data["Primary_Type"].unique()), key="explorer_ptype")
+        tenure = d.selectbox("Tenure", ["All"] + sorted(data["Tenure"].unique()), key="explorer_tenure")
+        st.markdown("</div>", unsafe_allow_html=True)
+
         subset = data.copy()
         if state != "All": subset = subset[subset["State"] == state]
         if area != "All": subset = subset[subset["Area_Clean"] == area]
         if ptype != "All": subset = subset[subset["Primary_Type"] == ptype]
         if tenure != "All": subset = subset[subset["Tenure"] == tenure]
-        
+        if area_search:
+            subset = subset[subset["Area_Clean"].str.contains(area_search, case=False, na=False)]
+
         if len(subset) == 0:
             st.warning("No historical records match these filters.")
         else:
-            m1, m2, m3, m4 = st.columns(4)
-            m1.metric("Records", f"{len(subset):,}")
-            m2.metric("Median price", f"RM {subset['Median_Price'].median()/1000:,.0f}K")
-            m3.metric("Median PSF", f"RM {subset['Median_PSF'].median():,.0f}")
-            m4.metric("Median transactions", f"{subset['Transactions'].median():,.0f}")
-            st.dataframe(subset, use_container_width=True, hide_index=True)
+            st.markdown(f'''
+            <div class="mh-metric-row">
+                <div class="mh-metric"><div class="k">Records</div><div class="v">{len(subset):,}</div></div>
+                <div class="mh-metric"><div class="k">Median price</div><div class="v">RM {subset['Median_Price'].median()/1000:,.0f}K</div></div>
+                <div class="mh-metric"><div class="k">Median PSF</div><div class="v">RM {subset['Median_PSF'].median():,.0f}</div></div>
+                <div class="mh-metric"><div class="k">Median transactions</div><div class="v">{subset['Transactions'].median():,.0f}</div></div>
+            </div>
+            ''', unsafe_allow_html=True)
+
+            st.markdown('<br>', unsafe_allow_html=True)
+            chart_tab, table_tab = st.tabs(["📊 Chart view", "📋 Table view"])
+            with chart_tab:
+                group_dim = "Area_Clean" if area == "All" else "Primary_Type"
+                top_n = (
+                    subset.groupby(group_dim)["Median_Price"]
+                    .median()
+                    .sort_values(ascending=False)
+                    .head(10)
+                    .reset_index()
+                )
+                chart_display_placeholder = st.empty()
+                st.bar_chart(top_n.set_index(group_dim)["Median_Price"], use_container_width=True)
+                st.caption(f"Top {min(10, len(top_n))} by median price, grouped by {('area' if group_dim=='Area_Clean' else 'property type')}.")
+            with table_tab:
+                st.dataframe(subset, use_container_width=True, hide_index=True)
     else:
         group = st.selectbox("Insight category", list(FIGURE_GROUPS))
         for filename, caption in FIGURE_GROUPS[group]:
