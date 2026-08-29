@@ -55,7 +55,7 @@ STATE_COORDS = {
     "Putrajaya": [2.9264, 101.6964], "Labuan": [5.2831, 115.2308]
 }
 
-# Grouped hardcoded areas by state to ensure they ALWAYS appear on the map
+# Grouped hardcoded areas by state to ensure they ALWAYS appear accurately on the map
 HARDCODED_AREAS = {
     "Selangor": {
         "Sekinchan": [3.5053, 101.1036], "Tanjong Karang": [3.4267, 101.1773],
@@ -124,7 +124,7 @@ HARDCODED_AREAS = {
 }
 
 # ---------------------------------------------------------------------------
-# STYLES & UNIVERSAL SVG BUTTON HACK
+# STYLES & UNIVERSAL SVG BUTTON FIX
 # ---------------------------------------------------------------------------
 st.markdown(r"""
 <style>
@@ -155,23 +155,28 @@ header[data-testid="stHeader"] { background:transparent!important; }
 .mh-stats { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; }
 .mh-stats .k { font-family:var(--mono); font-size:.68rem; letter-spacing:.12em; color:#9FB4D4; text-transform:uppercase; margin-bottom:3px; }
 .mh-stats .v { font-family:var(--mono); font-size:.94rem; font-weight:700; color:#FFFFFF; }
-
-.mh-empty { background:#FFFFFF; border:1px dashed #CFD8E6; border-radius:14px; padding:52px 24px; text-align:center; color:var(--muted); box-shadow:var(--shadow); margin-top:20px;}
 .stButton>button[kind="primary"] { background:var(--blue); border-color:var(--blue); border-radius:11px; min-height:44px;}
+.mh-empty { background:#FFFFFF; border:1px dashed #CFD8E6; border-radius:14px; padding:52px 24px; text-align:center; color:var(--muted); box-shadow:var(--shadow); margin-top:20px;}
 
 /* 
   UNIVERSAL BUTTON HACK:
-  This CSS targets ONLY secondary buttons (which we strictly use for the SVG properties).
-  It gives the column a relative positioning, and stretches the invisible button to cover the entire column. 
-  This permanently removes the broken white box artifact!
+  This pulls the invisible Streamlit button exactly over the SVG image so the empty box disappears entirely.
+  This targets ONLY the secondary element in the column, preventing layout collapse.
 */
-div[data-testid="column"] { position: relative !important; }
-button[kind="secondary"] {
-    position: absolute !important;
-    top: 0 !important; left: 0 !important;
-    width: 100% !important; height: 100% !important;
-    opacity: 0 !important; z-index: 999 !important;
-    cursor: pointer !important; margin: 0 !important;
+div[data-testid="column"] > div.element-container:nth-child(2) {
+    height: 0px !important;
+    min-height: 0px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    display: block !important;
+}
+div[data-testid="column"] > div.element-container:nth-child(2) div[data-testid="stButton"] button {
+    transform: translateY(-105px) !important;
+    height: 105px !important;
+    opacity: 0 !important;
+    z-index: 999 !important;
+    cursor: pointer !important;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -194,7 +199,7 @@ def load_model(name):
 
 @st.cache_data(show_spinner=False)
 def get_area_coords(area_name: str, state_name: str):
-    """Retrieve precise map coordinates for an area with tight inland fallback scatter."""
+    """Retrieve precise map coordinates for an area."""
     if state_name in HARDCODED_AREAS and area_name in HARDCODED_AREAS[state_name]:
         return HARDCODED_AREAS[state_name][area_name]
     
@@ -285,7 +290,7 @@ def analyze_address(data, available_states):
                     matched_area = display_name(raw_area)
         except: pass
 
-    # 2. String Match Fallback
+    # 2. String Match Fallback if Postcode fails
     if not matched_state:
         for st_name in sorted(available_states, key=len, reverse=True):
             if st_name.lower() in addr:
@@ -293,7 +298,7 @@ def analyze_address(data, available_states):
                 break
                 
     if matched_state and not matched_area:
-        # Check both dataset areas AND our custom hardcoded list
+        # Match against Dataset Areas OR Hardcoded Areas
         valid_areas = set([display_name(a) for a in data[data["State"] == matched_state]["Area_Clean"].dropna().unique()])
         if matched_state in HARDCODED_AREAS:
             valid_areas.update(HARDCODED_AREAS[matched_state].keys())
@@ -403,7 +408,7 @@ def prediction_page(data, results):
     with col_loc1:
         st.markdown(f"**State:** {current_state or 'Not Selected'} &nbsp; | &nbsp; **Area:** {current_area or 'Not Selected'}")
     with col_loc2:
-        st.button("Reset Location", use_container_width=True, on_click=reset_location_state, type="primary")
+        st.button("Reset Location", use_container_width=True, on_click=reset_location_state)
 
     st.markdown('<hr class="mh-rule">', unsafe_allow_html=True)
     st.markdown("<h3 style='margin-top:0;'>🏡 2. Property Details</h3>", unsafe_allow_html=True)
@@ -416,16 +421,16 @@ def prediction_page(data, results):
         with svg_cols[i]:
             is_sel = (pt == st.session_state["selected_ptype"])
             
-            # The SVG UI element (Rendered as single string)
+            # The SVG UI element
             st.markdown(get_colored_svg(pt, is_sel), unsafe_allow_html=True)
             
             # The transparent Streamlit button covering it. 
-            # Note: We enforce type="secondary" here because our CSS hack strictly hides ALL secondary buttons inside columns to create the overlay.
-            if st.button(pt, key=f"btn_{pt}", type="secondary", use_container_width=True):
+            # Note: We enforce type="secondary" here because our CSS hack strictly hides ALL secondary buttons inside columns.
+            if st.button(" ", key=f"btn_{pt}", type="secondary", use_container_width=True):
                 st.session_state["selected_ptype"] = pt
                 st.rerun()
 
-    # Numerical Inputs (Transactions are SILENTLY handled in the background)
+    # Numerical Inputs (Transactions Removed from UI)
     col_in1, col_in2 = st.columns(2)
     with col_in1:
         field_label("Tenure")
