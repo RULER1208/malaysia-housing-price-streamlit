@@ -15,6 +15,7 @@ from folium.plugins import MarkerCluster
 from streamlit_folium import st_folium
 import hashlib
 import time
+import re
 
 try:
     from geopy.geocoders import Nominatim
@@ -41,8 +42,6 @@ MODELS_DIR = APP_DIR / "models"
 FIGURES_DIR = APP_DIR / "figures"
 MODEL_FEATURES = ["State", "Area_Key", "Tenure", "Primary_Type", "Median_PSF", "Transactions"]
 
-NO_AREA = "— No Area Selected —"
-
 STATE_COORDS = {
     "Johor": [1.9344, 103.3587], "Kedah": [6.1184, 100.3685],
     "Kelantan": [5.3500, 102.0000], "Melaka": [2.2500, 102.2500],
@@ -54,19 +53,17 @@ STATE_COORDS = {
     "Putrajaya": [2.9264, 101.6964], "Labuan": [5.2831, 115.2308]
 }
 
-# Pre-calculated real-world coordinates for major towns to bypass API rate limits
 HARDCODED_AREAS = {
     "Skudai": [1.5333, 103.6667], "Tebrau": [1.5833, 103.7500], "Pasir Gudang": [1.4703, 103.8966], 
     "Kulai": [1.6561, 103.6023], "Johor Bahru": [1.4927, 103.7414], "Batu Pahat": [1.8548, 102.9325],
     "Kluang": [2.0251, 103.3328], "Muar": [2.0442, 102.5689], "Sekinchan": [3.5053, 101.1036], 
-    "Petaling Jaya": [3.1073, 101.6067], "Shah Alam": [3.0738, 101.5183], "Subang Jaya": [3.0471, 101.5832],
-    "Klang": [3.0449, 101.4456], "Puchong": [3.0246, 101.6168], "Kajang": [2.9935, 101.7892], 
-    "Cheras": [3.1062, 101.7690], "Tapah": [4.2000, 101.2600], "Ipoh": [4.5975, 101.0901],
-    "Taiping": [4.8500, 100.7333], "Georgetown": [5.4141, 100.3288], "Butterworth": [5.3995, 100.3638], 
-    "Bayan Lepas": [5.2952, 100.2588], "Bemban": [2.2667, 102.3667], "Jasin": [2.3130, 102.4312],
-    "Seremban": [2.7297, 101.9381], "Alor Setar": [6.1210, 100.3601], "Kuantan": [3.8077, 103.3260], 
-    "Kota Kinabalu": [5.9804, 116.0735], "Kuching": [1.5533, 110.3592], "Bangsar": [3.1253, 101.6749], 
-    "Setapak": [3.1895, 101.7058], "Mont Kiara": [3.1672, 101.6508], "Bukit Jalil": [3.0578, 101.6885]
+    "Tanjong Karang": [3.4267, 101.1773], "Petaling Jaya": [3.1073, 101.6067], "Shah Alam": [3.0738, 101.5183], 
+    "Subang Jaya": [3.0471, 101.5832], "Klang": [3.0449, 101.4456], "Puchong": [3.0246, 101.6168], 
+    "Kajang": [2.9935, 101.7892], "Cheras": [3.1062, 101.7690], "Tapah": [4.2000, 101.2600], 
+    "Ipoh": [4.5975, 101.0901], "Taiping": [4.8500, 100.7333], "Georgetown": [5.4141, 100.3288], 
+    "Butterworth": [5.3995, 100.3638], "Bayan Lepas": [5.2952, 100.2588], "Bemban": [2.2667, 102.3667], 
+    "Jasin": [2.3130, 102.4312], "Seremban": [2.7297, 101.9381], "Alor Setar": [6.1210, 100.3601], 
+    "Kuantan": [3.8077, 103.3260], "Kota Kinabalu": [5.9804, 116.0735], "Kuching": [1.5533, 110.3592]
 }
 
 # ---------------------------------------------------------------------------
@@ -104,21 +101,19 @@ header[data-testid="stHeader"] { background:transparent!important; }
 .stButton>button[kind="primary"] { background:var(--blue); border-color:var(--blue); border-radius:11px; min-height:44px;}
 .mh-empty { background:#FFFFFF; border:1px dashed #CFD8E6; border-radius:14px; padding:52px 24px; text-align:center; color:var(--muted); margin-top:20px;}
 
-/* CSS HACK: Turn specific Streamlit buttons into invisible overlays over our SVG cards! */
-button[aria-label="Bungalow"], button[aria-label="Semi D"], button[aria-label="Terrace House"], 
-button[aria-label="Town House"], button[aria-label="Cluster House"], button[aria-label="Condominium"], 
-button[aria-label="Apartment"], button[aria-label="Flat"], button[aria-label="Service Residence"] {
-    background: transparent !important;
-    border: none !important;
-    color: transparent !important;
-    box-shadow: none !important;
+/* CSS HACK: Stretches the Streamlit button over the SVG box to make it directly clickable */
+div[data-testid="column"]:has(svg) {
+    position: relative !important;
+}
+div[data-testid="column"]:has(svg) div[data-testid="stButton"] {
     position: absolute !important;
-    top: 0 !important;
-    left: 0 !important;
-    width: 100% !important;
-    height: 100% !important;
-    z-index: 10 !important;
-    cursor: pointer !important;
+    top: 0 !important; left: 0 !important;
+    width: 100% !important; height: 100% !important;
+    z-index: 999 !important;
+}
+div[data-testid="column"]:has(svg) button {
+    width: 100% !important; height: 100% !important;
+    opacity: 0 !important; cursor: pointer !important;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -141,7 +136,6 @@ def load_model(name):
 
 @st.cache_data(show_spinner=False)
 def get_area_coords(area_name: str, state_name: str):
-    """Retrieve precise map coordinates for an area with fallback procedural scattering."""
     if area_name in HARDCODED_AREAS:
         return HARDCODED_AREAS[area_name]
     
@@ -154,7 +148,6 @@ def get_area_coords(area_name: str, state_name: str):
                 return [loc.latitude, loc.longitude]
         except: pass
             
-    # Deterministic procedural scatter (prevents markers stacking up)
     base_coords = STATE_COORDS.get(state_name, [4.2105, 108.9758])
     hash_val = int(hashlib.md5(area_name.encode('utf-8')).hexdigest(), 16)
     lat_offset = ((hash_val % 1000) / 1000.0 - 0.5) * 0.8
@@ -165,7 +158,6 @@ def field_label(text: str) -> None:
     st.markdown(f'<div class="mh-label">{text}</div>', unsafe_allow_html=True)
 
 def get_colored_svg(ptype: str, is_selected: bool) -> str:
-    """Returns a vibrant, multi-colored SVG tailored to property types."""
     c_roof = "#E63946"  # Red
     c_wall = "#F1FAEE"  # Off-white
     c_door = "#1D3557"  # Navy
@@ -194,42 +186,68 @@ def get_colored_svg(ptype: str, is_selected: bool) -> str:
 # LOGIC CONTROLLERS
 # ---------------------------------------------------------------------------
 def reset_location_state():
-    """Explicitly reset location logic including the text input box."""
     st.session_state["selected_state"] = None
     st.session_state["selected_area"] = None
     st.session_state["map_center"] = [4.2105, 108.9758]
     st.session_state["map_zoom"] = 6
-    st.session_state["address_input"] = "" # Clears the input box physically 
+    st.session_state["address_input"] = ""
 
 def analyze_address(data, available_states):
-    """Fired when user types an address. Detects State & Area, updates map zoom."""
+    """Detects Postcodes & Text directly and extracts State & Area via Geopy."""
     addr = st.session_state.get("address_input", "").lower()
     if not addr: return
 
     matched_state = None
-    for st_name in sorted(available_states, key=len, reverse=True):
-        if st_name.lower() in addr:
-            matched_state = st_name
-            st.session_state["selected_state"] = st_name
-            break
-            
-    if matched_state:
+    matched_area = None
+    
+    # 1. Postcode Geocoding Check
+    postcode_match = re.search(r'\b\d{5}\b', addr)
+    if postcode_match and HAS_GEOPY:
+        postcode = postcode_match.group()
+        try:
+            geolocator = Nominatim(user_agent="mh_estimator", timeout=3)
+            loc = geolocator.geocode(f"{postcode}, Malaysia", addressdetails=True)
+            if loc and 'address' in loc.raw:
+                addr_details = loc.raw['address']
+                raw_state = addr_details.get('state', '').lower()
+                raw_area = addr_details.get('town', addr_details.get('city', addr_details.get('county', addr_details.get('suburb', ''))))
+                
+                for st_name in available_states:
+                    if st_name.lower() in raw_state:
+                        matched_state = st_name
+                        break
+                if raw_area:
+                    matched_area = display_name(raw_area)
+        except: pass
+
+    # 2. String Match Fallback
+    if not matched_state:
+        for st_name in sorted(available_states, key=len, reverse=True):
+            if st_name.lower() in addr:
+                matched_state = st_name
+                break
+                
+    if matched_state and not matched_area:
         valid_areas = data[data["State"] == matched_state]["Area_Clean"].dropna().unique()
         valid_disp_areas = [display_name(a) for a in valid_areas]
-        
         for a in sorted(valid_disp_areas, key=len, reverse=True):
             if a.lower() in addr:
-                st.session_state["selected_area"] = a
-                coords = get_area_coords(a, matched_state)
-                if coords:
-                    st.session_state["map_center"] = coords
-                    st.session_state["map_zoom"] = 12
-                return
+                matched_area = a
+                break
 
-    if matched_state and matched_state in STATE_COORDS:
-        st.session_state["selected_area"] = None
-        st.session_state["map_center"] = STATE_COORDS[matched_state]
-        st.session_state["map_zoom"] = 8
+    # 3. Apply state and zoom changes
+    if matched_state:
+        st.session_state["selected_state"] = matched_state
+        if matched_area:
+            st.session_state["selected_area"] = matched_area
+            coords = get_area_coords(matched_area, matched_state)
+            if coords:
+                st.session_state["map_center"] = coords
+                st.session_state["map_zoom"] = 12
+        else:
+            st.session_state["selected_area"] = None
+            st.session_state["map_center"] = STATE_COORDS.get(matched_state, [4.2105, 108.9758])
+            st.session_state["map_zoom"] = 8
 
 # ---------------------------------------------------------------------------
 # PAGE 1 - PREDICTION INTERFACE
@@ -249,8 +267,8 @@ def prediction_page(data, results):
     
     st.markdown("<h3 style='margin-top:0;'>📍 1. Location Selection</h3>", unsafe_allow_html=True)
     
-    st.text_input("Enter your address to auto-detect location, or click the map below:", 
-                  placeholder="e.g. Sekinchan, Selangor",
+    st.text_input("Enter your address/postcode to auto-detect location, or click the map below:", 
+                  placeholder="e.g. 45400 or Sekinchan, Selangor",
                   key="address_input", on_change=analyze_address, args=(data, available_states))
 
     map_center = st.session_state.get("map_center", [4.2105, 108.9758] if not current_state else STATE_COORDS.get(current_state, [4.2105, 108.9758]))
@@ -269,16 +287,18 @@ def prediction_page(data, results):
                     popup=f"STATE:{st_name}"
                 ).add_to(m)
                 
-    # Map Mode 2: Area Drill-Down using Marker Clusters
+    # Map Mode 2: Dynamic Area Drill-Down
     else:
-        # Maps every single dataset area for the selected state dynamically
+        # Load all CSV areas for the current state, and include the user's custom area if Geopy found one
         all_state_areas = data[data["State"] == current_state]["Area_Clean"].dropna().unique()
+        areas_to_plot = set([display_name(a) for a in all_state_areas])
+        if current_area:
+            areas_to_plot.add(current_area)
+            
         marker_cluster = MarkerCluster(name="Areas").add_to(m)
         
-        for area_clean in all_state_areas:
-            disp_area = display_name(area_clean)
+        for disp_area in areas_to_plot:
             coords = get_area_coords(disp_area, current_state)
-            
             if coords:
                 is_sel = (disp_area == current_area)
                 folium.CircleMarker(
@@ -308,7 +328,6 @@ def prediction_page(data, results):
             st.session_state["map_zoom"] = 12
             st.rerun()
 
-    # Location Readout & Controls
     col_loc1, col_loc2 = st.columns([4, 1])
     with col_loc1:
         st.markdown(f"**State:** {current_state or 'Not Selected'} &nbsp; | &nbsp; **Area:** {current_area or 'Not Selected'}")
@@ -318,7 +337,7 @@ def prediction_page(data, results):
     st.markdown('<hr class="mh-rule">', unsafe_allow_html=True)
     st.markdown("<h3 style='margin-top:0;'>🏡 2. Property Details</h3>", unsafe_allow_html=True)
 
-    # Interactive SVG Grid
+    # Interactive SVG Grid via CSS Overlay
     field_label("Select Property Type")
     svg_cols = st.columns(len(ptypes))
     for i, pt in enumerate(ptypes):
@@ -328,7 +347,7 @@ def prediction_page(data, results):
             border = "2px solid #2F6FED" if is_sel else "1px solid #E2E7EF"
             txt_color = "#2F6FED" if is_sel else "#667085"
             
-            # The visually rendered card
+            # 1. Render the visual card
             st.markdown(f'''
             <div style="border:{border}; background:{bg}; border-radius:12px; padding:15px 4px; text-align:center; display:flex; flex-direction:column; justify-content:center; align-items:center;">
                 {get_colored_svg(pt, is_sel)}
@@ -336,22 +355,19 @@ def prediction_page(data, results):
             </div>
             ''', unsafe_allow_html=True)
             
-            # The invisible clickable overlay 
-            if st.button(pt, key=f"btn_{pt}", use_container_width=True):
+            # 2. The invisible Streamlit button captures clicks perfectly over the SVG!
+            if st.button(" ", key=f"btn_{pt}", use_container_width=True):
                 st.session_state["selected_ptype"] = pt
                 st.rerun()
 
-    # Numerical Inputs
-    col_in1, col_in2, col_in3 = st.columns(3)
+    # Numerical Inputs (Transactions Removed)
+    col_in1, col_in2 = st.columns(2)
     with col_in1:
         field_label("Tenure")
         tenure = st.selectbox("Tenure", sorted(data["Tenure"].unique()), key="pred_tenure", label_visibility="collapsed")
     with col_in2:
         field_label("Median price per sq ft (RM)")
         psf = st.number_input("PSF", min_value=1, step=10, value=int(round(data["Median_PSF"].median())), key="pred_psf", label_visibility="collapsed")
-    with col_in3:
-        field_label("Transactions")
-        transactions = st.number_input("Transactions", min_value=0, step=1, value=int(round(data["Transactions"].median())), key="pred_txn", label_visibility="collapsed")
 
     st.markdown('<br>', unsafe_allow_html=True)
     predict_clicked = st.button("Generate Price Estimate  →", type="primary", use_container_width=True)
@@ -359,13 +375,15 @@ def prediction_page(data, results):
     # ---------------- RESULT RENDER ----------------
     if predict_clicked:
         if not current_state or not current_area:
-            st.error("Please click a State, and then click an Area on the map before predicting.")
+            st.error("Please select both a State and an Area from the map or address input before predicting.")
             return
 
         model = load_model(recommended)
-        from area_preprocessing import create_area_key
         area_key = create_area_key(current_state, current_area)
         ptype = st.session_state["selected_ptype"]
+        
+        # We silently inject the median historical transactions into the features dataframe to keep the model happy
+        transactions = int(round(data["Transactions"].median()))
         
         features = pd.DataFrame([{
             "State": current_state, "Area_Key": area_key, "Tenure": tenure,
