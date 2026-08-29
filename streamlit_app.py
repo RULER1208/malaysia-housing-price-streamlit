@@ -701,48 +701,50 @@ footer { visibility:hidden; }
 .stTabs [role="tablist"] {
     display:flex!important;
     align-items:center!important;
-    gap:12px!important;
-    min-height:104px;
-    padding:18px 24px!important;
-    background:linear-gradient(135deg, var(--navy) 0%, var(--navy-2) 72%, var(--navy-3) 100%)!important;
-    border:1px solid rgba(255,255,255,.08)!important;
-    border-radius:26px!important;
-    margin:10px 0 30px!important;
-    box-shadow:0 18px 38px rgba(23,35,59,.18);
+    gap:8px!important;
+    min-height:82px;
+    padding:14px 18px!important;
+    background:linear-gradient(135deg, #18243B 0%, #22324E 100%)!important;
+    border:1px solid rgba(255,255,255,.07)!important;
+    border-radius:21px!important;
+    margin:10px 0 28px!important;
+    box-shadow:0 14px 30px rgba(23,35,59,.16);
 }
 .stTabs [role="tablist"]::before {
-    content:"⌂  Malaysia\AHousing Estimator";
-    white-space:pre;
-    display:block;
-    min-width:270px;
-    padding:8px 12px;
-    line-height:1.18;
-    font-size:1.18rem;
+    content:"⌂  Malaysia Housing Estimator";
+    white-space:nowrap;
+    display:flex;
+    align-items:center;
+    min-width:320px;
+    height:42px;
+    padding:0 22px 0 10px;
+    margin-right:14px;
+    border-right:1px solid rgba(255,255,255,.14);
+    font-size:1.08rem;
     font-weight:800;
     letter-spacing:.01em;
     color:#FFFFFF;
-    margin-right:14px;
 }
 .stTabs [role="tab"] {
-    height:50px!important;
-    padding:0 28px!important;
-    border-radius:15px!important;
-    color:#CBD5E1!important;
-    font-weight:700!important;
-    font-size:.98rem!important;
-    background:rgba(255,255,255,.035)!important;
+    height:44px!important;
+    padding:0 24px!important;
+    border-radius:12px!important;
+    color:#C5D0E2!important;
+    font-weight:650!important;
+    font-size:.94rem!important;
+    background:transparent!important;
     border:1px solid transparent!important;
-    transition:all .18s ease!important;
+    transition:all .16s ease!important;
 }
 .stTabs [role="tab"]:hover {
     color:#FFFFFF!important;
-    background:rgba(255,255,255,.09)!important;
+    background:rgba(255,255,255,.065)!important;
 }
 .stTabs [role="tab"][aria-selected="true"] {
-    color:var(--navy)!important;
-    background:#FFFFFF!important;
-    border-color:rgba(255,255,255,.7)!important;
-    box-shadow:0 9px 20px rgba(23,35,59,.18), inset 0 -4px 0 var(--blue)!important;
+    color:#1E2B43!important;
+    background:#F8FAFC!important;
+    border-color:#DDE4EE!important;
+    box-shadow:0 6px 14px rgba(8,18,36,.15)!important;
 }
 .stTabs [data-baseweb="tab-highlight"], .stTabs [data-baseweb="tab-border"] { display:none!important; }
 
@@ -833,34 +835,38 @@ div[class*="st-key-btn_"] button p {
     overflow-wrap:anywhere!important;
 }
 
-/* ---------- TENURE: THREE DIRECT-CLICK PILLS ---------- */
+/* ---------- TENURE: COMPACT SEGMENTED CONTROL ---------- */
+.tenure-hint {
+    color:#8A94A6;
+    font-size:.78rem;
+    margin:-2px 0 7px;
+}
 div[class*="st-key-tenure_btn_"] button {
     width:100%!important;
-    min-height:50px!important;
-    padding:8px 12px!important;
-    border-radius:14px!important;
-    font-size:.95rem!important;
+    min-height:40px!important;
+    padding:6px 12px!important;
+    border-radius:999px!important;
+    font-size:.86rem!important;
     font-weight:650!important;
-    line-height:1.2!important;
-    transition:all .16s ease!important;
+    line-height:1.1!important;
+    transition:all .15s ease!important;
+    box-shadow:none!important;
 }
 div[class*="st-key-tenure_btn_"] button[kind="secondary"] {
     background:#FFFFFF!important;
-    color:#475569!important;
-    border:1px solid #DDE3EC!important;
-    box-shadow:0 4px 12px rgba(23,35,59,.04)!important;
+    color:#5A6475!important;
+    border:1px solid #D9E0EA!important;
 }
 div[class*="st-key-tenure_btn_"] button[kind="secondary"]:hover {
     background:#F8FAFC!important;
-    border-color:#B8C5D8!important;
-    color:#243A5A!important;
-    transform:translateY(-1px)!important;
+    border-color:#BCC7D6!important;
+    color:#263852!important;
 }
 div[class*="st-key-tenure_btn_"] button[kind="primary"] {
     background:var(--green-soft)!important;
     color:var(--green-dark)!important;
     border:1.5px solid #76BE9E!important;
-    box-shadow:0 7px 16px rgba(47,143,104,.12)!important;
+    box-shadow:0 3px 9px rgba(47,143,104,.10)!important;
 }
 div[class*="st-key-tenure_btn_"] button p {
     margin:0!important;
@@ -982,8 +988,9 @@ button[kind="secondary"] { border-radius:14px!important; }
 .mh-footer {
     margin-top:36px;
     padding:18px 22px;
-    border-radius:20px;
-    background:linear-gradient(135deg, var(--navy) 0%, var(--navy-2) 72%, var(--navy-3) 100%);
+    border-radius:18px;
+    background:linear-gradient(135deg, #18243B 0%, #22324E 100%);
+    border:1px solid rgba(255,255,255,.06);
     color:#DCE4F2;
     display:flex;
     align-items:center;
@@ -1331,18 +1338,21 @@ def prediction_page(data, results):
     col_in1, col_in2 = st.columns(2)
     with col_in1:
         field_label("Tenure")
-        tenure_cols = st.columns(len(tenure_options), gap="small")
-        for idx, tenure_option in enumerate(tenure_options):
-            with tenure_cols[idx]:
-                is_tenure_selected = (tenure_option == st.session_state["selected_tenure"])
-                if st.button(
-                    tenure_option,
-                    key=f"tenure_btn_{tenure_option}",
-                    type="primary" if is_tenure_selected else "secondary",
-                    use_container_width=True,
-                ):
-                    st.session_state["selected_tenure"] = tenure_option
-                    st.rerun()
+        st.markdown("<div class='tenure-hint'>Ownership status</div>", unsafe_allow_html=True)
+        tenure_group, tenure_space = st.columns([3.2, 1.15])
+        with tenure_group:
+            tenure_cols = st.columns(len(tenure_options), gap="small")
+            for idx, tenure_option in enumerate(tenure_options):
+                with tenure_cols[idx]:
+                    is_tenure_selected = (tenure_option == st.session_state["selected_tenure"])
+                    if st.button(
+                        tenure_option,
+                        key=f"tenure_btn_{tenure_option}",
+                        type="primary" if is_tenure_selected else "secondary",
+                        use_container_width=True,
+                    ):
+                        st.session_state["selected_tenure"] = tenure_option
+                        st.rerun()
         tenure = st.session_state["selected_tenure"]
     with col_in2:
         field_label("Median price per sq ft (RM)")
