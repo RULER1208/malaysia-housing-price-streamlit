@@ -1536,27 +1536,29 @@ def prediction_page(data, results):
             '<div class="note">This location is part of the nationwide Malaysia map but is not directly present in the 2025 housing dataset. '
             'The model therefore uses its unseen / infrequent-area handling for this estimate.</div>'
         )
-        st.markdown(f'''
-        <div class="mh-result" id="estimate-result">
-            <div class="mh-result-top">
-                <div>
-                    <div class="cap">Estimated median price</div>
-                    <div class="price">RM {saved["prediction"]:,.0f}</div>
-                    <div class="sub">{saved["area"]}, {saved["state"]} · {saved["ptype"]} · {saved["tenure"]}</div>
-                    {coverage_note}
-                </div>
-                <div class="mh-result-badge">
-                    <div class="kicker">Recommended model</div>
-                    <div class="model">{saved["model_name"]}</div>
-                </div>
-            </div>
-            <div class="rule"></div>
-            <div class="mh-stats">
-                <div class="mh-stat"><div class="k">Test MAE</div><div class="v">RM {saved["mae_test"]/1000:,.1f}K</div></div>
-                <div class="mh-stat"><div class="k">Test R²</div><div class="v">{saved["r2_test"]:.3f}</div></div>
-                <div class="mh-stat"><div class="k">Market PSF Input</div><div class="v">RM {saved["psf"]:,.0f}</div></div>
-            </div>
-        </div>''', unsafe_allow_html=True)
+        result_html = (
+            f'<div class="mh-result" id="estimate-result">'
+            f'<div class="mh-result-top">'
+            f'<div>'
+            f'<div class="cap">Estimated median price</div>'
+            f'<div class="price">RM {saved["prediction"]:,.0f}</div>'
+            f'<div class="sub">{saved["area"]}, {saved["state"]} · {saved["ptype"]} · {saved["tenure"]}</div>'
+            f'{coverage_note}'
+            f'</div>'
+            f'<div class="mh-result-badge">'
+            f'<div class="kicker">Recommended model</div>'
+            f'<div class="model">{saved["model_name"]}</div>'
+            f'</div>'
+            f'</div>'
+            f'<div class="rule"></div>'
+            f'<div class="mh-stats">'
+            f'<div class="mh-stat"><div class="k">Test MAE</div><div class="v">RM {saved["mae_test"]/1000:,.1f}K</div></div>'
+            f'<div class="mh-stat"><div class="k">Test R²</div><div class="v">{saved["r2_test"]:.3f}</div></div>'
+            f'<div class="mh-stat"><div class="k">Market PSF Input</div><div class="v">RM {saved["psf"]:,.0f}</div></div>'
+            f'</div>'
+            f'</div>'
+        )
+        st.markdown(result_html, unsafe_allow_html=True)
     else:
         st.markdown(
             '<div class="mh-empty"><div class="icon">⌂</div>'
@@ -1614,14 +1616,15 @@ def insights_page(data):
         if len(subset) == 0:
             st.warning("No historical records match these filters.")
         else:
-            st.markdown(f'''
-            <div class="mh-metric-row">
-                <div class="mh-metric"><div class="k">Records</div><div class="v">{len(subset):,}</div></div>
-                <div class="mh-metric"><div class="k">Median price</div><div class="v">RM {subset['Median_Price'].median()/1000:,.0f}K</div></div>
-                <div class="mh-metric"><div class="k">Median PSF</div><div class="v">RM {subset['Median_PSF'].median():,.0f}</div></div>
-                <div class="mh-metric"><div class="k">Median transactions</div><div class="v">{subset['Transactions'].median():,.0f}</div></div>
-            </div>
-            ''', unsafe_allow_html=True)
+            metric_row_html = (
+                f'<div class="mh-metric-row">'
+                f'<div class="mh-metric"><div class="k">Records</div><div class="v">{len(subset):,}</div></div>'
+                f'<div class="mh-metric"><div class="k">Median price</div><div class="v">RM {subset["Median_Price"].median()/1000:,.0f}K</div></div>'
+                f'<div class="mh-metric"><div class="k">Median PSF</div><div class="v">RM {subset["Median_PSF"].median():,.0f}</div></div>'
+                f'<div class="mh-metric"><div class="k">Median transactions</div><div class="v">{subset["Transactions"].median():,.0f}</div></div>'
+                f'</div>'
+            )
+            st.markdown(metric_row_html, unsafe_allow_html=True)
 
             st.markdown('<br>', unsafe_allow_html=True)
             chart_tab, table_tab = st.tabs(["📊 Chart view", "📋 Table view"])
