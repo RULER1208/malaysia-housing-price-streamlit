@@ -161,24 +161,8 @@ header[data-testid="stHeader"] { background:transparent!important; }
 /* Custom Tenure Radio Pills layout */
 div[role="radiogroup"] { gap: 15px; }
 
-/* 
-  FLAWLESS GRID BUTTON HACK:
-  Forces the container of the SVG Card and the Button to share the exact same 1x1 CSS grid space.
-  This allows the invisible button to completely cover the SVG natively without translation bugs or white boxes.
-*/
-div[data-testid="column"]:has(.ptype-card) {
-    display: grid !important;
-}
-div[data-testid="column"]:has(.ptype-card) > div {
-    grid-area: 1 / 1 !important;
-}
-div[data-testid="column"]:has(.ptype-card) button {
-    height: 100% !important;
-    width: 100% !important;
-    opacity: 0 !important;
-    cursor: pointer !important;
-    margin: 0 !important;
-}
+/* Property type now uses real Streamlit buttons.
+   No invisible overlay button is needed, so the blank box is removed. */
 </style>
 """, unsafe_allow_html=True)
 
@@ -212,11 +196,10 @@ def get_area_coords(area_name: str, state_name: str):
                 return [loc.latitude, loc.longitude]
         except: pass
             
-    base_coords = STATE_COORDS.get(state_name, [4.2105, 108.9758])
-    hash_val = int(hashlib.md5(area_name.encode('utf-8')).hexdigest(), 16)
-    lat_offset = ((hash_val % 100) / 100.0 - 0.5) * 0.4
-    lon_offset = (((hash_val // 100) % 100) / 100.0 - 0.5) * 0.4
-    return [base_coords[0] + lat_offset, base_coords[1] + lon_offset]
+    # Do NOT invent a map position when an area cannot be geocoded.
+    # Returning None is safer than showing a wrong pin. The area is still
+    # selectable from the dataset-driven Area dropdown below.
+    return None
 
 def field_label(text: str) -> None:
     st.markdown(f'<div class="mh-label">{text}</div>', unsafe_allow_html=True)
@@ -295,9 +278,6 @@ def analyze_address(data, available_states):
                 
     if matched_state and not matched_area:
         valid_areas = set([display_name(a) for a in data[data["State"] == matched_state]["Area_Clean"].dropna().unique()])
-        if matched_state in HARDCODED_AREAS:
-            valid_areas.update(HARDCODED_AREAS[matched_state].keys())
-            
         for a in sorted(valid_areas, key=len, reverse=True):
             if a.lower() in addr:
                 matched_area = a
@@ -331,13 +311,76 @@ def prediction_page(data, results):
 
     current_state = st.session_state["selected_state"]
     current_area = st.session_state["selected_area"]
-    
+
+    # Malaysia = 13 states + 3 Federal Territories.
+    expected_states = {
+        "Johor", "Kedah", "Kelantan", "Melaka", "Negeri Sembilan",
+        "Pahang", "Penang", "Perak", "Perlis", "Sabah", "Sarawak",
+        "Selangor", "Terengganu", "Kuala Lumpur", "Putrajaya", "Labuan"
+    }
+    dataset_states = set(available_states)
+    missing_states = sorted(expected_states - dataset_states)
+    unexpected_states = sorted(dataset_states - expected_states)
+
     st.markdown("<h3 style='margin-top:0;'>📍 1. Location Selection</h3>", unsafe_allow_html=True)
-    
+
+    if missing_states:
+        st.warning("Dataset is missing state(s): " + ", ".join(missing_states))
+    if unexpected_states:
+        st.warning("Unrecognised state value(s) in dataset: " + ", ".join(unexpected_states))
+
+    # Dataset-driven State -> Area selectors guarantee that every selectable area
+    # is assigned to the same state used during model training.
+    loc_a, loc_b = st.columns(2)
+    with loc_a:
+        state_options = ["— Select State —"] + available_states
+        state_index = state_options.index(current_state) if current_state in state_options else 0
+        selected_state_list = st.selectbox("State", state_options, index=state_index, key="state_list")
+
+    if selected_state_list != (current_state or "— Select State —"):
+        if selected_state_list == "— Select State —":
+            reset_location_state()
+        else:
+            st.session_state["selected_state"] = selected_state_list
+            st.session_state["selected_area"] = None
+            st.session_state["map_center"] = STATE_COORDS.get(selected_state_list, [4.2105, 108.9758])
+            st.session_state["map_zoom"] = 9
+        st.rerun()
+
+    current_state = st.session_state["selected_state"]
+    current_area = st.session_state["selected_area"]
+
+    with loc_b:
+        if current_state:
+            state_areas = sorted(
+                {display_name(a) for a in data.loc[data["State"] == current_state, "Area_Clean"].dropna().unique()}
+            )
+            area_options = ["— Select Area —"] + state_areas
+            area_index = area_options.index(current_area) if current_area in area_options else 0
+            selected_area_list = st.selectbox("Area", area_options, index=area_index, key=f"area_list_{current_state}")
+        else:
+            state_areas = []
+            selected_area_list = st.selectbox("Area", ["— Select Area —"], disabled=True)
+
+    if current_state and selected_area_list != (current_area or "— Select Area —"):
+        if selected_area_list == "— Select Area —":
+            st.session_state["selected_area"] = None
+            st.session_state["map_center"] = STATE_COORDS.get(current_state, [4.2105, 108.9758])
+            st.session_state["map_zoom"] = 9
+        else:
+            st.session_state["selected_area"] = selected_area_list
+            coords = get_area_coords(selected_area_list, current_state)
+            if coords:
+                st.session_state["map_center"] = coords
+                st.session_state["map_zoom"] = 12
+        st.rerun()
+
     st.text_input("Enter your address or postcode to auto-detect location, or click the map below:", 
                   placeholder="e.g. 45400 or Sekinchan, Selangor",
                   key="address_input", on_change=analyze_address, args=(data, available_states))
 
+    current_state = st.session_state["selected_state"]
+    current_area = st.session_state["selected_area"]
     map_center = st.session_state.get("map_center", [4.2105, 108.9758] if not current_state else STATE_COORDS.get(current_state, [4.2105, 108.9758]))
     map_zoom = st.session_state.get("map_zoom", 6 if not current_state else 9)
     
@@ -357,8 +400,6 @@ def prediction_page(data, results):
         all_state_areas = data[data["State"] == current_state]["Area_Clean"].dropna().unique()
         areas_to_plot = set([display_name(a) for a in all_state_areas])
         
-        if current_state in HARDCODED_AREAS:
-            areas_to_plot.update(HARDCODED_AREAS[current_state].keys())
         if current_area:
             areas_to_plot.add(current_area)
             
@@ -403,15 +444,29 @@ def prediction_page(data, results):
     st.markdown('<hr class="mh-rule">', unsafe_allow_html=True)
     st.markdown("<h3 style='margin-top:0;'>🏡 2. Property Details</h3>", unsafe_allow_html=True)
 
-    # ---------------- FLAWLESS SVG BUTTON OVERLAY ----------------
+    # ---------------- PROPERTY TYPE: REAL BUTTONS, NO EMPTY OVERLAY ----------------
     field_label("Select Property Type")
-    svg_cols = st.columns(len(ptypes))
-    
+    property_icons = {
+        "Bungalow": "🏠",
+        "Semi D": "🏘️",
+        "Terrace House": "🏡",
+        "Condominium": "🏢",
+        "Apartment": "🏬",
+        "Flat": "🏬",
+        "Service Residence": "🏙️",
+    }
+    ptype_cols = st.columns(len(ptypes))
+
     for i, pt in enumerate(ptypes):
-        with svg_cols[i]:
+        with ptype_cols[i]:
             is_sel = (pt == st.session_state["selected_ptype"])
-            st.markdown(get_colored_svg(pt, is_sel), unsafe_allow_html=True)
-            if st.button(" ", key=f"btn_{pt}", type="secondary", use_container_width=True):
+            icon = property_icons.get(pt, "🏠")
+            if st.button(
+                f"{icon}  {pt}",
+                key=f"btn_{pt}",
+                type="primary" if is_sel else "secondary",
+                use_container_width=True,
+            ):
                 st.session_state["selected_ptype"] = pt
                 st.rerun()
 
