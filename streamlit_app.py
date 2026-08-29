@@ -833,30 +833,47 @@ div[class*="st-key-btn_"] button p {
     overflow-wrap:anywhere!important;
 }
 
-/* ---------- TENURE PILLS ---------- */
+/* ---------- TENURE: ONE-LINE DIRECT-SELECTION CARDS ---------- */
 div[data-testid="stVerticalBlock"]:has(.tenure-anchor) div[role="radiogroup"] {
     display:flex!important;
-    flex-wrap:wrap!important;
+    flex-direction:row!important;
+    flex-wrap:nowrap!important;
+    width:100%!important;
     gap:10px!important;
+    align-items:stretch!important;
 }
 div[data-testid="stVerticalBlock"]:has(.tenure-anchor) div[role="radiogroup"] > label {
-    background:#FFFFFF!important;
-    border:1px solid #DDE3EC!important;
-    border-radius:999px!important;
-    min-height:48px!important;
-    padding:9px 15px!important;
+    flex:1 1 0!important;
+    width:0!important;
+    min-width:0!important;
+    min-height:50px!important;
+    margin:0!important;
+    padding:10px 12px!important;
     display:flex!important;
     align-items:center!important;
+    justify-content:center!important;
+    background:#FFFFFF!important;
+    border:1px solid #DDE3EC!important;
+    border-radius:14px!important;
     box-shadow:0 4px 12px rgba(23,35,59,.04)!important;
+    cursor:pointer!important;
+    transition:border-color .18s ease, background .18s ease, box-shadow .18s ease, transform .18s ease!important;
+}
+div[data-testid="stVerticalBlock"]:has(.tenure-anchor) div[role="radiogroup"] > label:hover {
+    border-color:#B8C5D8!important;
+    transform:translateY(-1px)!important;
 }
 div[data-testid="stVerticalBlock"]:has(.tenure-anchor) div[role="radiogroup"] > label:has(input:checked) {
-    border-color:#76BE9E!important;
+    border:1.5px solid #76BE9E!important;
     background:var(--green-soft)!important;
-    box-shadow:0 6px 16px rgba(47,143,104,.14)!important;
+    box-shadow:0 7px 16px rgba(47,143,104,.12)!important;
 }
 div[data-testid="stVerticalBlock"]:has(.tenure-anchor) div[role="radiogroup"] p {
+    margin:0!important;
+    text-align:center!important;
     font-weight:650!important;
     color:#475569!important;
+    white-space:nowrap!important;
 }
 div[data-testid="stVerticalBlock"]:has(.tenure-anchor) div[role="radiogroup"] > label:has(input:checked) p {
     color:var(--green-dark)!important;
@@ -864,9 +881,11 @@ div[data-testid="stVerticalBlock"]:has(.tenure-anchor) div[role="radiogroup"] > 
 div[data-testid="stVerticalBlock"]:has(.tenure-anchor) input[type="radio"] {
     position:absolute!important;
     opacity:0!important;
+    width:0!important;
+    height:0!important;
     pointer-events:none!important;
 }
-/* Hide BaseWeb's circular radio marker; selected pill itself is the indicator. */
+/* Remove the default blue radio circle completely. */
 div[data-testid="stVerticalBlock"]:has(.tenure-anchor) div[role="radiogroup"] > label > div:first-child:not([data-testid="stMarkdownContainer"]),
 div[data-testid="stVerticalBlock"]:has(.tenure-anchor) label[data-baseweb="radio"] > div:first-child {
     display:none!important;
@@ -1238,8 +1257,8 @@ def prediction_page(data, results):
         for st_name in available_states:
             if st_name in STATE_COORDS:
                 folium.CircleMarker(
-                    location=STATE_COORDS[st_name], radius=11, color="#18392F", weight=2,
-                    fill=True, fill_color="#3E8169", fill_opacity=0.88,
+                    location=STATE_COORDS[st_name], radius=11, color="#15243A", weight=2,
+                    fill=True, fill_color="#2F6FED", fill_opacity=0.82,
                     tooltip=folium.Tooltip(f"<b>{st_name}</b> (Click to select state)", sticky=True),
                     popup=f"STATE:{st_name}"
                 ).add_to(m)
@@ -1261,10 +1280,10 @@ def prediction_page(data, results):
                 pin_note = "Approximate position · click to select" if is_approx else "Click to select"
                 folium.CircleMarker(
                     location=coords, radius=12 if is_sel else 8,
-                    color="#247653" if is_sel else ("#98A2B3" if is_approx else "#A86F24"),
+                    color="#18875D" if is_sel else ("#98A2B3" if is_approx else "#C47A10"),
                     weight=3 if is_sel else 2,
                     fill=True,
-                    fill_color="#2F8F68" if is_sel else ("#D0D5DD" if is_approx else "#D9A04B"),
+                    fill_color="#10B981" if is_sel else ("#D0D5DD" if is_approx else "#F59E0B"),
                     fill_opacity=0.9 if is_sel else 0.75,
                     tooltip=folium.Tooltip(f"<b>{disp_area}</b><br>{area_kind} · {pin_note}", sticky=True),
                     popup=f"AREA:{disp_area}"
