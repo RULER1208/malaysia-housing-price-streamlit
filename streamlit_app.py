@@ -3,39 +3,6 @@ BMDS2003 Data Science - Deployment Prototype
 Malaysia Housing Median Price Estimator
 
 Run locally:  streamlit run streamlit_app.py
-
-MODEL CONTRACT - six trained features:
-    State, Area_Key, Tenure, Primary_Type, Median_PSF, Transactions
-
-Area IS a trained feature, supplied as a state-qualified key ("JOHOR | SKUDAI").
-The same area_preprocessing module is used by the notebook at training time and
-by this app at prediction time, so cleaning can never drift. Township is
-excluded because it is near-unique per row.
-
-TOP NAVIGATION BANNER
----------------------
-The top-level tab bar IS the banner: one dark navy rounded card holding the
-brand (left), the page pills, and the dataset label (right).
-
-Two robustness notes, both learned from this app failing to style before:
-
-1. Selectors. Older guidance uses `.stTabs [data-baseweb="tab-list"]`, but
-   that attribute is not present in every Streamlit build - when it is
-   missing the bar silently keeps its default underline look. Every rule
-   below therefore also targets the ARIA roles `[role="tablist"]` and
-   `[role="tab"]`, which are stable across versions.
-
-2. No position:fixed. A fixed element is positioned against the nearest
-   ancestor that has a transform/filter/will-change, not the viewport, so it
-   can land in the wrong place. The banner sits in normal flow instead, and
-   is raised to the toolbar's row by trimming the container's top padding and
-   making Streamlit's own header transparent.
-
-REFERENCE VALUES
-----------------
-Median PSF and Transactions are prediction inputs the user sets deliberately.
-They use a FIXED, dataset-wide default and a STABLE widget key, so changing
-State / Area / Type / Tenure never silently rewrites a value already entered.
 """
 from __future__ import annotations
 from pathlib import Path
@@ -43,6 +10,8 @@ import inspect
 import joblib
 import pandas as pd
 import streamlit as st
+import folium
+from streamlit_folium import st_folium
 
 from area_preprocessing import clean_area_name, clean_state_name, create_area_key, display_name
 
@@ -66,6 +35,26 @@ MODEL_FEATURES = ["State", "Area_Key", "Tenure", "Primary_Type", "Median_PSF", "
 SELECTBOX_ACCEPTS_NEW = "accept_new_options" in inspect.signature(st.selectbox).parameters
 NO_AREA = "— No specific area —"
 
+# Approximate coordinates for Malaysia States to plot on the map
+STATE_COORDS = {
+    "Johor": [1.4854, 103.7618],
+    "Kedah": [6.1184, 100.3685],
+    "Kelantan": [6.1248, 102.2386],
+    "Melaka": [2.1896, 102.2501],
+    "Negeri Sembilan": [2.7258, 101.9424],
+    "Pahang": [3.8126, 103.3256],
+    "Penang": [5.4141, 100.3288],
+    "Perak": [4.5921, 101.0901],
+    "Perlis": [6.4449, 100.2048],
+    "Sabah": [5.9750, 116.0725],
+    "Sarawak": [1.5535, 110.3593],
+    "Selangor": [3.0738, 101.5183],
+    "Terengganu": [5.3117, 103.1324],
+    "Kuala Lumpur": [3.1390, 101.6869],
+    "Putrajaya": [2.9264, 101.6964],
+    "Labuan": [5.2831, 115.2308]
+}
+
 st.markdown(r"""
 <style>
 :root {
@@ -86,15 +75,10 @@ st.markdown(r"""
 html,body,[class*="css"] { font-family:Inter,"Segoe UI",Roboto,Arial,sans-serif }
 h1,h2,h3,h4 { color:var(--navy) }
 
-/* Pull the page up so the banner sits on the toolbar's row, and let the
-   banner show through Streamlit's own header instead of a white strip. */
 .block-container { max-width:1180px; padding-top:12px!important; padding-bottom:2rem; }
 header[data-testid="stHeader"] { background:transparent!important; }
 [data-testid="stToolbar"] { color:var(--muted)!important; }
 
-/* ---------- Top navigation banner (the tab bar itself) ----------
-   Duplicated selectors on purpose: ARIA roles are the reliable ones,
-   data-baseweb is kept for older Streamlit builds. */
 .stTabs [role="tablist"],
 .stTabs [data-baseweb="tab-list"] {
     display:flex!important; align-items:center!important;
@@ -115,7 +99,6 @@ header[data-testid="stHeader"] { background:transparent!important; }
 }
 .stTabs [role="tablist"]::after,
 .stTabs [data-baseweb="tab-list"]::after {
-
     margin-left:auto; white-space:nowrap;
     font-family:var(--mono); font-size:.72rem; letter-spacing:.1em;
     color:#8FA6C6;
@@ -137,18 +120,14 @@ header[data-testid="stHeader"] { background:transparent!important; }
     color:var(--navy)!important; background:#FFFFFF!important;
     border-bottom:none!important;
 }
-/* Kill the default sliding underline in every build */
 .stTabs [data-baseweb="tab-highlight"],
 .stTabs [data-baseweb="tab-border"],
 .stTabs [role="tablist"] + div[data-baseweb="tab-highlight"] {
     display:none!important; background:transparent!important;
 }
 
-/* Insights page segmented control (a radio, not a second st.tabs, so the
-   rules above can target the navigation without restyling it) */
 div[role="radiogroup"] { gap:8px; }
 
-/* ---------- Left input card ---------- */
 .mh-panel-title {
     display:flex; align-items:center; gap:9px;
     font-size:1rem; font-weight:700; color:var(--navy); margin:2px 0 4px 0;
@@ -165,7 +144,6 @@ div[role="radiogroup"] { gap:8px; }
 }
 .mh-rule { border:none; border-top:1px solid var(--border); margin:16px 0 14px 0; }
 
-/* ---------- Right result column ---------- */
 .mh-result {
     background:var(--navy); border-radius:var(--radius);
     padding:26px 26px 24px; box-shadow:var(--shadow);
@@ -224,8 +202,6 @@ div[data-testid="stMetric"] {
 }
 .mh-fig-caption { font-size:.86rem; color:var(--muted); margin:2px 0 18px 0; line-height:1.4; }
 
-/* Below ~1400px the Streamlit toolbar starts to overlap the banner's right
-   edge, so the dataset label is dropped before it can collide. */
 @media(max-width:1400px){
     .stTabs [role="tablist"]::after,
     .stTabs [data-baseweb="tab-list"]::after { display:none; }
@@ -244,7 +220,6 @@ div[data-testid="stMetric"] {
     .mh-stats{grid-template-columns:1fr 1fr;}
 }
 @media(max-width:620px){
-    /* Drop the brand first so all three pills stay reachable */
     .stTabs [role="tablist"]::before,
     .stTabs [data-baseweb="tab-list"]::before { display:none; }
 }
@@ -273,17 +248,14 @@ def load_model(name):
 
 
 def field_label(text: str, hint: str = "") -> None:
-    """Small uppercase field label, with an optional right-aligned hint."""
     right = f'<span class="hint">{hint}</span>' if hint else ""
     st.markdown(f'<div class="mh-label"><span>{text}</span>{right}</div>',
                 unsafe_allow_html=True)
-
 
 # ---------------------------------------------------------------------------
 # AREA RESOLUTION AND REFERENCE LOOKUP
 # ---------------------------------------------------------------------------
 def reset_prediction_form():
-    """Clear every prediction widget and remove the previous result."""
     for key in list(st.session_state.keys()):
         if key.startswith("pred_"):
             del st.session_state[key]
@@ -302,8 +274,6 @@ def resolve_known_area(data, state, area_text):
 
 
 def derive_reference(data, state, area_clean, ptype, tenure):
-    """Median PSF / Transactions for the closest matching group - INFORMATION
-    ONLY. Never used as a widget's live default (see module docstring)."""
     s = data["State"].eq(state); t = data["Primary_Type"].eq(ptype); n = data["Tenure"].eq(tenure)
     candidates = []
     if area_clean:
@@ -333,7 +303,6 @@ def derive_reference(data, state, area_clean, ptype, tenure):
 # ---------------------------------------------------------------------------
 def prediction_page(data, results):
     recommended = results.iloc[0]["Model"]
-    # Fixed, selection-independent defaults so no dropdown ever rewrites them.
     default_psf = int(round(data["Median_PSF"].median()))
     default_txn = int(round(data["Transactions"].median()))
     psf_min, psf_max = int(data["Median_PSF"].min()), int(data["Median_PSF"].max())
@@ -344,10 +313,27 @@ def prediction_page(data, results):
     with left:
         with st.container(border=True):
 
+            field_label("Select State (Click on Map)")
+            
+            # Map Rendering
+            m = folium.Map(location=[4.2105, 108.9758], zoom_start=5, tiles="CartoDB positron")
+            for st_name in data["State"].unique():
+                if st_name in STATE_COORDS:
+                    folium.Marker(
+                        location=STATE_COORDS[st_name],
+                        tooltip=st_name,
+                        name=st_name
+                    ).add_to(m)
 
-            field_label("State")
-            state = st.selectbox("State", sorted(data["State"].unique()),
-                                 key="pred_state", label_visibility="collapsed")
+            map_data = st_folium(m, height=300, use_container_width=True)
+            
+            # Extract state from map click or set default
+            if map_data and map_data.get("last_object_clicked_tooltip"):
+                state = map_data["last_object_clicked_tooltip"]
+            else:
+                state = sorted(data["State"].unique())[0]
+
+            st.markdown(f"**Current Selected State:** {state}")
 
             field_label("Area")
             area_options = [NO_AREA] + known_areas_for_state(data, state)
@@ -390,8 +376,6 @@ def prediction_page(data, results):
             transactions = st.number_input("Transactions", min_value=0, step=1,
                                            value=default_txn, key="pred_txn",
                                            label_visibility="collapsed")
-
-            
 
             field_label("Model")
             labels, mapping = [], {}
@@ -461,8 +445,6 @@ def prediction_page(data, results):
             <div class="row"><span class="k">Transactions</span><span class="v">{transactions:,}</span></div>
         </div>''', unsafe_allow_html=True)
 
-
-
         with st.expander("Technical details"):
             st.markdown(
                 f"- **Reference source:** {reference['label']}\n"
@@ -475,35 +457,33 @@ def prediction_page(data, results):
                        "from. The prediction itself used exactly the Median PSF "
                        "and Transactions shown above.")
 
-
 FIGURE_GROUPS = {
     "Data quality": [
-        ("fig01_raw_target_distribution.png", "House prices are heavily skewed — most townships are affordable, a few are very expensive."),
-        ("fig02_raw_numeric_boxplots.png", "Boxplots of price, PSF and transactions before cleaning — dots beyond the whiskers are candidate outliers."),
-        ("fig10_outlier_before_after.png", "Extreme values removed by outlier cleaning, before vs after."),
-        ("fig11_price_distribution_before_after.png", "Price distribution becomes more balanced after cleaning."),
+        ("fig01_raw_target_distribution.png", "House prices are heavily skewed."),
+        ("fig02_raw_numeric_boxplots.png", "Boxplots of price, PSF and transactions before cleaning."),
+        ("fig10_outlier_before_after.png", "Extreme values removed by outlier cleaning."),
+        ("fig11_price_distribution_before_after.png", "Price distribution becomes more balanced."),
     ],
     "Area quality and coverage": [
         ("fig09_area_labels_before_after.png", "Area name spelling and formatting before vs after standardisation."),
-        ("fig12_area_repeated_singleton.png", "Many areas appear only once in the data — a real limitation for those locations."),
-        ("fig13_area_frequency_distribution.png", "How many records each area has — most have very few."),
+        ("fig12_area_repeated_singleton.png", "Many areas appear only once in the data."),
+        ("fig13_area_frequency_distribution.png", "How many records each area has."),
         ("fig14_top20_areas.png", "The 20 areas with the most records in the dataset."),
-        ("fig15_area_cleaning_findings.png", "Summary of issues found and fixed while cleaning area names."),
+        ("fig15_area_cleaning_findings.png", "Summary of issues found and fixed."),
         ("fig16_area_price_distribution.png", "How median price varies across different areas."),
     ],
     "Location and property": [
         ("fig18_state_counts_clean.png", "Number of records per state after cleaning."),
         ("fig19_state_price_distribution.png", "Median price differs a lot from state to state."),
-        ("fig20_property_type_price.png", "Bungalows and semi-detached homes cost more than flats and apartments, on average."),
-        ("fig21_tenure_price.png", "Freehold properties tend to have a different price profile than leasehold."),
+        ("fig20_property_type_price.png", "Bungalows and semi-detached homes cost more."),
+        ("fig21_tenure_price.png", "Freehold properties tend to have a different price profile."),
     ],
     "Relationships": [
         ("fig22_psf_price_by_category.png", "Price per square foot is one of the strongest single predictors of price."),
-        ("fig23_feature_correlation.png", "How strongly each feature relates to price and to the other features."),
+        ("fig23_feature_correlation.png", "How strongly each feature relates to price."),
         ("fig24_top_transactions.png", "The most actively traded townships in 2025."),
     ],
 }
-
 
 # ---------------------------------------------------------------------------
 # PAGE 2 - MARKET INSIGHTS
@@ -536,7 +516,6 @@ def insights_page(data):
                                "Tenure", "Median_Price", "Median_PSF", "Transactions"]].copy()
                 st.dataframe(show, use_container_width=True, hide_index=True)
     else:
-        
         group = st.selectbox("Insight category", list(FIGURE_GROUPS))
         for filename, caption in FIGURE_GROUPS[group]:
             path = FIGURES_DIR / filename
@@ -558,11 +537,11 @@ def model_report_page(results):
     m4.metric("Test R²", f"{recommended['R2_test']:.3f}")
     st.dataframe(results, use_container_width=True, hide_index=True)
     sections = {
-        "Area ablation": [("fig25_area_ablation.png", "Does including Area actually improve predictions? Compared with and without it.")],
-        "Performance": [("fig26_model_test_comparison.png", "How the four models compare on data they have not seen."),
-                        ("fig27_cv_stability_overfitting.png", "Checking that each model performs consistently, not just well on one lucky split.")],
-        "Diagnostics": [("fig28_prediction_diagnostics.png", "Where the selected model's predictions are most and least accurate.")],
-        "Importance": [("fig29_permutation_importance.png", "Which inputs the model actually relies on, tested on unseen data."),
+        "Area ablation": [("fig25_area_ablation.png", "Does including Area actually improve predictions?")],
+        "Performance": [("fig26_model_test_comparison.png", "How the models compare on unseen data."),
+                        ("fig27_cv_stability_overfitting.png", "Checking that each model performs consistently.")],
+        "Diagnostics": [("fig28_prediction_diagnostics.png", "Where the model's predictions are most and least accurate.")],
+        "Importance": [("fig29_permutation_importance.png", "Which inputs the model actually relies on."),
                        ("fig30_aggregated_split_importance.png", "Which inputs the model used most often while learning.")],
     }
     section = st.selectbox("Report section", list(sections))
