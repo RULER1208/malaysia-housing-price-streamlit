@@ -14,6 +14,7 @@ import folium
 from folium.plugins import MarkerCluster
 from streamlit_folium import st_folium
 import hashlib
+import time
 
 try:
     from geopy.geocoders import Nominatim
@@ -31,7 +32,7 @@ st.set_page_config(
 )
 
 # ---------------------------------------------------------------------------
-# CONFIGURATION & COORDINATES
+# CONFIGURATION & REAL-WORLD COORDINATES
 # ---------------------------------------------------------------------------
 APP_DIR = Path(__file__).resolve().parent
 DATA_PATH = APP_DIR / "malaysia_house_price_cleaned_with_area.csv"
@@ -53,51 +54,62 @@ STATE_COORDS = {
     "Putrajaya": [2.9264, 101.6964], "Labuan": [5.2831, 115.2308]
 }
 
-# You can add exact coordinates for major areas here; 
-# otherwise, they will be procedurally scattered around the state center.
+# Pre-calculated real-world coordinates for major towns to bypass API rate limits
 HARDCODED_AREAS = {
+    # Johor
+    "Skudai": [1.5333, 103.6667], "Tebrau": [1.5833, 103.7500],
+    "Pasir Gudang": [1.4703, 103.8966], "Kulai": [1.6561, 103.6023],
+    "Johor Bahru": [1.4927, 103.7414], "Batu Pahat": [1.8548, 102.9325],
+    "Kluang": [2.0251, 103.3328], "Muar": [2.0442, 102.5689],
+    "Pontian": [1.4883, 103.3888], "Kota Tinggi": [1.7381, 103.8999],
+    "Segamat": [2.5144, 102.8159], "Mersing": [2.4312, 103.8361],
+    # Selangor
     "Sekinchan": [3.5053, 101.1036], "Petaling Jaya": [3.1073, 101.6067],
     "Shah Alam": [3.0738, 101.5183], "Subang Jaya": [3.0471, 101.5832],
-    "Klang": [3.0449, 101.4456], "Skudai": [1.5333, 103.6667],
-    "Tebrau": [1.5833, 103.7500], "Georgetown": [5.4141, 100.3288]
+    "Klang": [3.0449, 101.4456], "Kapar": [3.1396, 101.3752],
+    "Puchong": [3.0246, 101.6168], "Cyberjaya": [2.9228, 101.6572],
+    "Kajang": [2.9935, 101.7892], "Sepang": [2.6865, 101.7483],
+    "Ampang": [3.1496, 101.7610], "Cheras": [3.1062, 101.7690],
+    "Rawang": [3.3213, 101.5822], "Selayang": [3.2505, 101.6448],
+    "Gombak": [3.2200, 101.7000], "Sungai Buloh": [3.2086, 101.5794],
+    "Kuala Selangor": [3.3364, 101.2504], "Banting": [2.8155, 101.4975],
+    # Perak
+    "Tapah": [4.2000, 101.2600], "Chenderiang": [4.2667, 101.2333],
+    "Teluk Intan": [4.0259, 101.0213], "Ipoh": [4.5975, 101.0901],
+    "Taiping": [4.8500, 100.7333], "Sitiawan": [4.2144, 100.6974],
+    "Seri Manjung": [4.1950, 100.6650], "Kampar": [4.3000, 101.1500],
+    "Lumut": [4.2333, 100.6333],
+    # Penang
+    "Georgetown": [5.4141, 100.3288], "Tasek Gelugor": [5.4833, 100.4833],
+    "Butterworth": [5.3995, 100.3638], "Bayan Lepas": [5.2952, 100.2588],
+    "Bukit Mertajam": [5.3629, 100.4666], "Perai": [5.3833, 100.3833],
+    "Batu Kawan": [5.2652, 100.4283], "Nibong Tebal": [5.1667, 100.4667],
+    "Kepala Batas": [5.5167, 100.4333],
+    # Melaka
+    "Bemban": [2.2667, 102.3667], "Jasin": [2.3130, 102.4312],
+    "Ayer Keroh": [2.2642, 102.2858], "Alor Gajah": [2.3833, 102.2000],
+    # Negeri Sembilan
+    "Seremban": [2.7297, 101.9381], "Port Dickson": [2.5228, 101.7959],
+    "Nilai": [2.8167, 101.8000],
+    # Kedah
+    "Alor Setar": [6.1210, 100.3601], "Sungai Petani": [5.6436, 100.4897],
+    "Kulim": [5.3667, 100.5500],
+    # Pahang & East Coast & Borneo & KL
+    "Kuantan": [3.8077, 103.3260], "Temerloh": [3.4506, 102.4168],
+    "Cameron Highlands": [4.4721, 101.3801], "Kota Bharu": [6.1254, 102.2381],
+    "Kuala Terengganu": [5.3302, 103.1408], "Kemaman": [4.2333, 103.3333],
+    "Kota Kinabalu": [5.9804, 116.0735], "Kuching": [1.5533, 110.3592],
+    "Bangsar": [3.1253, 101.6749], "Setapak": [3.1895, 101.7058],
+    "Kepong": [3.2120, 101.6358], "Mont Kiara": [3.1672, 101.6508],
+    "Bukit Jalil": [3.0578, 101.6885], "Wangsa Maju": [3.2045, 101.7348],
 }
 
 st.markdown(r"""
 <style>
-:root {
-    --bg:#F6F8FB; --card:#FFFFFF; --navy:#15243A; --blue:#2F6FED;
-    --text:#172033; --muted:#667085; --border:#E2E7EF; --green:#18875D;
-    --soft:#EEF4FF; --radius:14px; --shadow:0 6px 22px rgba(24,49,83,.06);
-    --mono:ui-monospace,"SF Mono","Cascadia Mono",Menlo,Consolas,monospace;
-}
-.stApp { background:var(--bg); color:var(--text); }
-html,body,[class*="css"] { font-family:Inter,"Segoe UI",Roboto,Arial,sans-serif }
-h1,h2,h3,h4 { color:var(--navy) }
-.block-container { max-width:1180px; padding-top:12px!important; padding-bottom:2rem; }
-header[data-testid="stHeader"] { background:transparent!important; }
-
-.stTabs [role="tablist"] {
-    display:flex!important; align-items:center!important; gap:8px!important;
-    min-height:62px; padding:0 210px 0 22px!important;
-    background:var(--navy)!important; border-radius:var(--radius)!important;
-    border-bottom:none!important; margin-bottom:22px!important; overflow:visible!important;
-}
-.stTabs [role="tablist"]::before {
-    content:"\2302\00a0\00a0Malaysia Housing Price Estimator";
-    font-size:1.04rem; font-weight:700; color:#FFFFFF; margin-right:24px;
-}
-.stTabs [role="tab"] {
-    height:38px!important; padding:0 18px!important; border-radius:999px!important;
-    color:#B9C8DF!important; font-weight:600; font-size:.92rem;
-    background:transparent!important; border:none!important;
-}
-.stTabs [role="tab"]:hover { color:#FFFFFF!important; background:rgba(255,255,255,.10)!important; }
-.stTabs [role="tab"][aria-selected="true"] { color:var(--navy)!important; background:#FFFFFF!important; }
-.stTabs [data-baseweb="tab-highlight"], .stTabs [data-baseweb="tab-border"] { display:none!important; }
-
+:root { --navy:#15243A; --blue:#2F6FED; --muted:#667085; --border:#E2E7EF; --mono:ui-monospace,"SF Mono",monospace; }
 .mh-label { display:flex; font-family:var(--mono); font-size:.72rem; letter-spacing:.1em; color:var(--muted); margin:2px 0 5px 0; text-transform:uppercase; }
 .mh-rule { border:none; border-top:1px solid var(--border); margin:16px 0 14px 0; }
-.mh-result { background:var(--navy); border-radius:var(--radius); padding:26px 26px 24px; box-shadow:var(--shadow); margin-top:20px; }
+.mh-result { background:var(--navy); border-radius:14px; padding:26px; box-shadow:0 6px 22px rgba(24,49,83,.06); margin-top:20px; }
 .mh-result .cap { font-family:var(--mono); font-size:.72rem; letter-spacing:.14em; color:#9FB4D4; text-transform:uppercase; }
 .mh-result .price { font-size:2.7rem; font-weight:750; color:#FFFFFF; margin:8px 0 6px; }
 .mh-result .sub { color:#C9D7EC; font-size:.95rem; }
@@ -105,14 +117,13 @@ header[data-testid="stHeader"] { background:transparent!important; }
 .mh-stats { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; }
 .mh-stats .k { font-family:var(--mono); font-size:.68rem; letter-spacing:.12em; color:#9FB4D4; text-transform:uppercase; margin-bottom:3px; }
 .mh-stats .v { font-family:var(--mono); font-size:.94rem; font-weight:700; color:#FFFFFF; }
-
-.mh-empty { background:var(--card); border:1px dashed #CFD8E6; border-radius:var(--radius); padding:52px 24px; text-align:center; color:var(--muted); box-shadow:var(--shadow); margin-top:20px;}
 .stButton>button[kind="primary"] { background:var(--blue); border-color:var(--blue); border-radius:11px; min-height:44px;}
+.mh-empty { background:#FFFFFF; border:1px dashed #CFD8E6; border-radius:14px; padding:52px 24px; text-align:center; color:var(--muted); margin-top:20px;}
 </style>
 """, unsafe_allow_html=True)
 
 # ---------------------------------------------------------------------------
-# DATA & HELPERS
+# DATA & MAP HELPERS
 # ---------------------------------------------------------------------------
 @st.cache_data(show_spinner=False)
 def load_data():
@@ -120,8 +131,7 @@ def load_data():
 
 @st.cache_data(show_spinner=False)
 def load_results():
-    results = pd.read_csv(RESULTS_PATH)
-    return results.sort_values(["Group_CV_RMSE_mean", "Group_CV_RMSE_std"]).reset_index(drop=True)
+    return pd.read_csv(RESULTS_PATH).sort_values(["Group_CV_RMSE_mean"]).reset_index(drop=True)
 
 @st.cache_resource(show_spinner=False)
 def load_model(name):
@@ -130,18 +140,26 @@ def load_model(name):
 
 @st.cache_data(show_spinner=False)
 def get_area_coords(area_name: str, state_name: str):
-    """Generates coordinates for all areas. Uses hardcoded coords, then falls back to a deterministic scatter."""
+    """Retrieve precise map coordinates for an area."""
     if area_name in HARDCODED_AREAS:
         return HARDCODED_AREAS[area_name]
-        
-    # Deterministic procedural scatter for the rest to avoid API rate limits
+    
+    # Live Geopy fetch for missing areas 
+    if HAS_GEOPY:
+        try:
+            geolocator = Nominatim(user_agent="mh_estimator", timeout=2)
+            loc = geolocator.geocode(f"{area_name}, {state_name}, Malaysia")
+            if loc: 
+                time.sleep(1) # Prevent Rate Limiting
+                return [loc.latitude, loc.longitude]
+        except:
+            pass
+            
+    # Deterministic procedural scatter fallback (prevents markers from stacking on top of each other)
     base_coords = STATE_COORDS.get(state_name, [4.2105, 108.9758])
     hash_val = int(hashlib.md5(area_name.encode('utf-8')).hexdigest(), 16)
-    
-    # Create a consistent spread around the state center
-    lat_offset = ((hash_val % 1000) / 1000.0 - 0.5) * 0.9
-    lon_offset = (((hash_val // 1000) % 1000) / 1000.0 - 0.5) * 0.9
-    
+    lat_offset = ((hash_val % 1000) / 1000.0 - 0.5) * 0.7
+    lon_offset = (((hash_val // 1000) % 1000) / 1000.0 - 0.5) * 0.7
     return [base_coords[0] + lat_offset, base_coords[1] + lon_offset]
 
 def field_label(text: str) -> None:
@@ -172,12 +190,8 @@ def reset_prediction_form():
         if key.startswith("pred_") or key in ["selected_state", "selected_area", "map_center", "map_zoom", "address_input", "selected_ptype"]:
             del st.session_state[key]
 
-def known_areas_for_state(data: pd.DataFrame, state: str) -> list[str]:
-    subset = data.loc[data["State"] == state, "Area_Clean"].dropna().unique()
-    return sorted({display_name(a) for a in subset})
-
 def analyze_address(data, available_states):
-    """Fired when user types address. Detects State & Area, updates map coordinates."""
+    """Fired when user types address. Automatically clicks the correct map points behind the scenes."""
     addr = st.session_state.get("address_input", "").lower()
     if not addr: return
 
@@ -189,8 +203,11 @@ def analyze_address(data, available_states):
             break
             
     if matched_state:
-        areas = known_areas_for_state(data, matched_state)
-        for a in sorted(areas, key=len, reverse=True):
+        # STRICT FILTER: Only grab areas that actually exist in the CSV for this state
+        valid_areas = data[data["State"] == matched_state]["Area_Clean"].dropna().unique()
+        valid_disp_areas = [display_name(a) for a in valid_areas]
+        
+        for a in sorted(valid_disp_areas, key=len, reverse=True):
             if a.lower() in addr:
                 st.session_state["selected_area"] = a
                 coords = get_area_coords(a, matched_state)
@@ -212,13 +229,9 @@ def prediction_page(data, results):
     available_states = sorted(data["State"].unique())
     ptypes = sorted(data["Primary_Type"].unique())
 
-    # Session State Initialization
-    if "selected_state" not in st.session_state:
-        st.session_state["selected_state"] = None
-    if "selected_area" not in st.session_state:
-        st.session_state["selected_area"] = None
-    if "selected_ptype" not in st.session_state:
-        st.session_state["selected_ptype"] = ptypes[0]
+    if "selected_state" not in st.session_state: st.session_state["selected_state"] = None
+    if "selected_area" not in st.session_state: st.session_state["selected_area"] = None
+    if "selected_ptype" not in st.session_state: st.session_state["selected_ptype"] = ptypes[0]
 
     current_state = st.session_state["selected_state"]
     current_area = st.session_state["selected_area"]
@@ -234,7 +247,7 @@ def prediction_page(data, results):
     
     m = folium.Map(location=map_center, zoom_start=map_zoom, tiles="OpenStreetMap")
 
-    # Map Mode 1: No State Selected -> Show State Level Map
+    # Map Mode 1: Malaysia State Overview
     if not current_state:
         for st_name in available_states:
             if st_name in STATE_COORDS:
@@ -245,14 +258,16 @@ def prediction_page(data, results):
                     popup=f"STATE:{st_name}"
                 ).add_to(m)
                 
-    # Map Mode 2: State Selected -> Show ALL Area Markers using Clusters
+    # Map Mode 2: State Area Drill-Down (Strictly CSV Data Only)
     else:
-        all_areas = data[data["State"] == current_state]["Area_Clean"].dropna().unique()
+        # Guarantee 100% accuracy: Only fetch areas mapped to this state in the dataset
+        all_state_areas = data[data["State"] == current_state]["Area_Clean"].dropna().unique()
         marker_cluster = MarkerCluster(name="Areas").add_to(m)
         
-        for area_clean in all_areas:
+        for area_clean in all_state_areas:
             disp_area = display_name(area_clean)
             coords = get_area_coords(disp_area, current_state)
+            
             if coords:
                 is_sel = (disp_area == current_area)
                 folium.CircleMarker(
@@ -278,6 +293,8 @@ def prediction_page(data, results):
         elif popup_txt.startswith("AREA:"):
             clicked_area = popup_txt.split(":")[1]
             st.session_state["selected_area"] = clicked_area
+            st.session_state["map_center"] = get_area_coords(clicked_area, current_state)
+            st.session_state["map_zoom"] = 12
             st.rerun()
 
     # Location Readout & Controls
@@ -324,10 +341,11 @@ def prediction_page(data, results):
     # ---------------- RESULT RENDER ----------------
     if predict_clicked:
         if not current_state or not current_area:
-            st.error("Please select both a State and an Area from the map or address input before predicting.")
+            st.error("Please click a State, and then click an Area on the map before predicting.")
             return
 
         model = load_model(recommended)
+        from area_preprocessing import create_area_key
         area_key = create_area_key(current_state, current_area)
         ptype = st.session_state["selected_ptype"]
         
