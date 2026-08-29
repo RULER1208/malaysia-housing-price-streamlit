@@ -82,6 +82,13 @@ OFFICIAL_DISTRICTS = {
 assert len(OFFICIAL_DISTRICTS) == 16
 assert sum(len(v) for v in OFFICIAL_DISTRICTS.values()) == 160
 
+# Extra display areas for map UX where official district coverage is too coarse.
+# Putrajaya is one administrative district in DOSM, but the federal territory is
+# organised into 20 precincts in official planning references.
+SPECIAL_DISPLAY_AREAS = {
+    "Putrajaya": [f"Precinct {i}" for i in range(1, 21)]
+}
+
 # Massively expanded pre-calculated real-world coordinates for exact map pins
 HARDCODED_AREAS = {
     "Selangor": {
@@ -168,35 +175,50 @@ st.markdown(r"""
 .stApp { background:#F6F8FB; color:#172033; }
 .block-container { max-width:1200px; padding-top:14px!important; padding-bottom:2rem; }
 header[data-testid="stHeader"] { background:transparent!important; }
+div[data-testid="stToolbar"] { display:none !important; }
+#MainMenu { visibility:hidden; }
+footer { visibility:hidden; }
 
 /* Navigation Banner */
 .stTabs [role="tablist"] {
     display:flex!important;
     align-items:center!important;
-    gap:16px!important;
-    min-height:96px;
-    padding:16px 22px!important;
-    background:linear-gradient(135deg, #15243A 0%, #1A2C4B 100%)!important;
-    border-radius:26px!important;
-    margin-bottom:28px!important;
-    box-shadow:0 14px 34px rgba(21,36,58,.16);
+    gap:18px!important;
+    min-height:110px;
+    padding:18px 26px!important;
+    background:linear-gradient(135deg, #15243A 0%, #203253 100%)!important;
+    border:1px solid rgba(255,255,255,.06)!important;
+    border-radius:30px!important;
+    margin:12px 0 30px!important;
+    box-shadow:0 18px 40px rgba(17,24,39,.18);
 }
 .stTabs [role="tablist"]::before {
     content:"⌂  Malaysia\AHousing Estimator";
     white-space:pre;
     display:block;
-    min-width:230px;
+    min-width:265px;
+    padding:10px 12px;
     line-height:1.18;
-    font-size:1.14rem;
+    font-size:1.2rem;
     font-weight:800;
     color:#FFFFFF;
-    margin-right:12px;
+    margin-right:10px;
 }
 .stTabs [role="tab"] {
-    height:44px!important; padding:0 22px!important; border-radius:999px!important;
-    color:#C5D1E6!important; font-weight:700; background:transparent!important; border:none!important;
+    height:50px!important;
+    padding:0 30px!important;
+    border-radius:999px!important;
+    color:#C9D5EA!important;
+    font-weight:700;
+    font-size:1rem!important;
+    background:transparent!important;
+    border:none!important;
 }
-.stTabs [role="tab"][aria-selected="true"] { color:var(--navy)!important; background:#FFFFFF!important; box-shadow:0 8px 18px rgba(255,255,255,.16); }
+.stTabs [role="tab"][aria-selected="true"] {
+    color:var(--navy)!important;
+    background:#FFFFFF!important;
+    box-shadow:0 14px 30px rgba(79,111,234,.22), inset 0 -3px 0 #5A78EC;
+}
 .stTabs [data-baseweb="tab-highlight"], .stTabs [data-baseweb="tab-border"] { display:none!important; }
 
 /* Labels & Sections */
@@ -211,7 +233,7 @@ header[data-testid="stHeader"] { background:transparent!important; }
 }
 .mh-chip strong { color:#0F172A; }
 .mh-map-wrap {
-    border:1px solid var(--border); border-radius:18px; overflow:hidden; box-shadow:0 8px 22px rgba(15,23,42,.06); background:#FFF;
+    border:1px solid var(--border); border-radius:20px; overflow:hidden; box-shadow:0 10px 24px rgba(15,23,42,.07); background:#FFF;
 }
 .mh-map-tip {
     background:linear-gradient(180deg, #FFFFFF 0%, #F9FBFF 100%);
@@ -219,14 +241,35 @@ header[data-testid="stHeader"] { background:transparent!important; }
     font-size:.92rem; margin-bottom:12px;
 }
 .mh-map-tip b { color:#1D2939; }
-.mh-result { background:var(--navy); border-radius:16px; padding:26px; box-shadow:0 8px 24px rgba(24,49,83,.09); margin-top:20px; }
-.mh-result .cap { font-family:var(--mono); font-size:.72rem; letter-spacing:.14em; color:#9FB4D4; text-transform:uppercase; }
-.mh-result .price { font-size:2.7rem; font-weight:750; color:#FFFFFF; margin:8px 0 6px; }
-.mh-result .sub { color:#C9D7EC; font-size:.95rem; }
-.mh-result .rule { border-top:1px solid rgba(255,255,255,.16); margin:18px 0 14px; }
-.mh-stats { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; }
-.mh-stats .k { font-family:var(--mono); font-size:.68rem; letter-spacing:.12em; color:#9FB4D4; text-transform:uppercase; margin-bottom:3px; }
-.mh-stats .v { font-family:var(--mono); font-size:.94rem; font-weight:700; color:#FFFFFF; }
+.mh-result {
+    background:linear-gradient(135deg, #15243A 0%, #1C2F50 100%);
+    border-radius:28px;
+    padding:30px 34px;
+    box-shadow:0 18px 40px rgba(24,49,83,.16);
+    margin-top:22px;
+    border:1px solid rgba(255,255,255,.06);
+}
+.mh-result-top {
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-start;
+    gap:20px;
+}
+.mh-result .cap { font-family:var(--mono); font-size:.78rem; letter-spacing:.18em; color:#A8BAD6; text-transform:uppercase; }
+.mh-result .price { font-size:4rem; line-height:1.02; font-weight:800; color:#FFFFFF; margin:14px 0 12px; }
+.mh-result .sub { color:#D8E2F2; font-size:1.05rem; }
+.mh-result .note { color:#A8BAD6; font-size:.9rem; margin-top:10px; }
+.mh-result-badge {
+    min-width:220px; background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.1);
+    border-radius:20px; padding:16px 18px; box-shadow:inset 0 1px 0 rgba(255,255,255,.06);
+}
+.mh-result-badge .kicker { font-family:var(--mono); font-size:.68rem; letter-spacing:.14em; color:#A8BAD6; text-transform:uppercase; }
+.mh-result-badge .model { color:#FFFFFF; font-size:1.22rem; font-weight:800; margin-top:6px; }
+.mh-result .rule { border-top:1px solid rgba(255,255,255,.14); margin:22px 0 18px; }
+.mh-stats { display:grid; grid-template-columns:repeat(3,1fr); gap:16px; }
+.mh-stat { background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.08); border-radius:18px; padding:16px 18px; }
+.mh-stats .k { font-family:var(--mono); font-size:.68rem; letter-spacing:.12em; color:#A8BAD6; text-transform:uppercase; margin-bottom:7px; }
+.mh-stats .v { font-family:var(--mono); font-size:1.08rem; font-weight:800; color:#FFFFFF; }
 .stButton>button[kind="primary"] {
     background:var(--blue); border-color:var(--blue); border-radius:14px; min-height:48px; box-shadow:0 10px 20px rgba(79,111,234,.18);
 }
@@ -315,6 +358,8 @@ button[kind="secondary"] {
 @media (max-width: 900px) {
     .mh-stats { grid-template-columns:1fr; }
     .mh-chip { width:100%; justify-content:center; }
+    .mh-result-top { flex-direction:column; }
+    .mh-result-badge { width:100%; min-width:auto; }
 }
 </style>
 """, unsafe_allow_html=True)
@@ -397,7 +442,23 @@ def get_areas_for_state(data: pd.DataFrame, state_name: str):
         for a in data[data["State"] == state_name]["Area_Clean"].dropna().unique()
     }
     official_areas = set(OFFICIAL_DISTRICTS.get(state_name, []))
-    return sorted(dataset_areas | official_areas)
+    special_areas = set(SPECIAL_DISPLAY_AREAS.get(state_name, []))
+    return sorted(dataset_areas | official_areas | special_areas)
+
+@st.cache_data(show_spinner=False)
+def get_dataset_areas_for_state(data: pd.DataFrame, state_name: str):
+    return {
+        display_name(a)
+        for a in data[data["State"] == state_name]["Area_Clean"].dropna().unique()
+    }
+
+def resolve_model_area(data: pd.DataFrame, state_name: str, selected_area: str) -> str:
+    dataset_areas = get_dataset_areas_for_state(data, state_name)
+    if selected_area in dataset_areas:
+        return selected_area
+    if state_name in dataset_areas:
+        return state_name
+    return selected_area
 
 # ---------------------------------------------------------------------------
 # LOGIC CONTROLLERS
@@ -479,7 +540,7 @@ def prediction_page(data, results):
     
     st.markdown("<h3 class='mh-section-title'>📍 1. Location Selection</h3>", unsafe_allow_html=True)
     st.markdown("<p class='mh-section-note'>Select your location directly from the map. First choose a state, then the map zooms in so you can choose the area.</p>", unsafe_allow_html=True)
-    st.markdown("<div class='mh-map-tip'><b>How to use:</b> click a <b>state</b> pin first. After the map zooms in, click an <b>area</b> pin for that state. The state list covers all <b>16 Malaysia states / federal territories</b>, and each state's area list is built from your housing dataset plus the official <b>DOSM administrative district</b> list for that state.</div>", unsafe_allow_html=True)
+    st.markdown("<div class='mh-map-tip'><b>How to use:</b> click a <b>state</b> pin first. After the map zooms in, click an <b>area</b> pin for that state. The map covers all <b>16 Malaysia states / federal territories</b>. Each state uses your housing-dataset areas plus the official <b>DOSM administrative district</b> list, and Putrajaya also shows its <b>20 precincts</b> for a more useful map experience.</div>", unsafe_allow_html=True)
 
     st.text_input("Enter your address or postcode to auto-detect location, or click the map below:", 
                   placeholder="e.g. 45400 or Sekinchan, Selangor",
@@ -602,30 +663,43 @@ def prediction_page(data, results):
 
         model = load_model(recommended)
         from area_preprocessing import create_area_key
-        area_key = create_area_key(current_state, current_area)
+        model_area = resolve_model_area(data, current_state, current_area)
+        area_key = create_area_key(current_state, model_area)
         ptype = st.session_state["selected_ptype"]
         transactions = int(round(data["Transactions"].median()))
-        
+
         features = pd.DataFrame([{
             "State": current_state, "Area_Key": area_key, "Tenure": tenure,
             "Primary_Type": ptype, "Median_PSF": psf, "Transactions": transactions
         }])[MODEL_FEATURES]
-        
+
         with st.spinner("Calculating estimate..."):
             prediction = float(model.predict(features)[0])
-            
+
         metrics = results[results["Model"] == recommended].iloc[0]
+        model_area_note = ""
+        if model_area != current_area:
+            model_area_note = f'<div class="note">Prediction used nearest dataset-supported area: <b>{model_area}</b> in {current_state}.</div>'
 
         st.markdown(f'''
         <div class="mh-result" id="estimate-result">
-            <div class="cap">Estimated median price</div>
-            <div class="price">RM {prediction:,.0f}</div>
-            <div class="sub">{current_area}, {current_state} · {ptype} · {tenure}</div>
+            <div class="mh-result-top">
+                <div>
+                    <div class="cap">Estimated median price</div>
+                    <div class="price">RM {prediction:,.0f}</div>
+                    <div class="sub">{current_area}, {current_state} · {ptype} · {tenure}</div>
+                    {model_area_note}
+                </div>
+                <div class="mh-result-badge">
+                    <div class="kicker">Recommended model</div>
+                    <div class="model">{recommended}</div>
+                </div>
+            </div>
             <div class="rule"></div>
             <div class="mh-stats">
-                <div><div class="k">Model</div><div class="v">{recommended}</div></div>
-                <div><div class="k">Test MAE</div><div class="v">RM {metrics['MAE_test']/1000:,.1f}K</div></div>
-                <div><div class="k">Test R²</div><div class="v">{metrics['R2_test']:.3f}</div></div>
+                <div class="mh-stat"><div class="k">Test MAE</div><div class="v">RM {metrics['MAE_test']/1000:,.1f}K</div></div>
+                <div class="mh-stat"><div class="k">Test R²</div><div class="v">{metrics['R2_test']:.3f}</div></div>
+                <div class="mh-stat"><div class="k">Median PSF Used</div><div class="v">RM {psf:,.0f}</div></div>
             </div>
         </div>''', unsafe_allow_html=True)
 
