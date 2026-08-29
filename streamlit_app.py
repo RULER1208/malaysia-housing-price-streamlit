@@ -11,8 +11,9 @@ import joblib
 import pandas as pd
 import streamlit as st
 import folium
+from folium.plugins import MarkerCluster
 from streamlit_folium import st_folium
-import random
+import hashlib
 
 try:
     from geopy.geocoders import Nominatim
@@ -39,6 +40,8 @@ MODELS_DIR = APP_DIR / "models"
 FIGURES_DIR = APP_DIR / "figures"
 MODEL_FEATURES = ["State", "Area_Key", "Tenure", "Primary_Type", "Median_PSF", "Transactions"]
 
+NO_AREA = "— No Area Selected —"
+
 STATE_COORDS = {
     "Johor": [1.9344, 103.3587], "Kedah": [6.1184, 100.3685],
     "Kelantan": [5.3500, 102.0000], "Melaka": [2.2500, 102.2500],
@@ -50,6 +53,8 @@ STATE_COORDS = {
     "Putrajaya": [2.9264, 101.6964], "Labuan": [5.2831, 115.2308]
 }
 
+# You can add exact coordinates for major areas here; 
+# otherwise, they will be procedurally scattered around the state center.
 HARDCODED_AREAS = {
     "Sekinchan": [3.5053, 101.1036], "Petaling Jaya": [3.1073, 101.6067],
     "Shah Alam": [3.0738, 101.5183], "Subang Jaya": [3.0471, 101.5832],
@@ -125,22 +130,19 @@ def load_model(name):
 
 @st.cache_data(show_spinner=False)
 def get_area_coords(area_name: str, state_name: str):
-    """Geocode an area specifically within a state to place map markers."""
+    """Generates coordinates for all areas. Uses hardcoded coords, then falls back to a deterministic scatter."""
     if area_name in HARDCODED_AREAS:
         return HARDCODED_AREAS[area_name]
         
-    if HAS_GEOPY:
-        try:
-            geolocator = Nominatim(user_agent="mh_estimator", timeout=1)
-            loc = geolocator.geocode(f"{area_name}, {state_name}, Malaysia")
-            if loc: return [loc.latitude, loc.longitude]
-        except:
-            pass
-            
-    # Fallback to a procedural scatter around the State Center so the UI doesn't break
+    # Deterministic procedural scatter for the rest to avoid API rate limits
     base_coords = STATE_COORDS.get(state_name, [4.2105, 108.9758])
-    random.seed(area_name)
-    return [base_coords[0] + random.uniform(-0.3, 0.3), base_coords[1] + random.uniform(-0.3, 0.3)]
+    hash_val = int(hashlib.md5(area_name.encode('utf-8')).hexdigest(), 16)
+    
+    # Create a consistent spread around the state center
+    lat_offset = ((hash_val % 1000) / 1000.0 - 0.5) * 0.9
+    lon_offset = (((hash_val // 1000) % 1000) / 1000.0 - 0.5) * 0.9
+    
+    return [base_coords[0] + lat_offset, base_coords[1] + lon_offset]
 
 def field_label(text: str) -> None:
     st.markdown(f'<div class="mh-label">{text}</div>', unsafe_allow_html=True)
@@ -243,10 +245,12 @@ def prediction_page(data, results):
                     popup=f"STATE:{st_name}"
                 ).add_to(m)
                 
-    # Map Mode 2: State Selected -> Show Area Level Map (Drill down)
+    # Map Mode 2: State Selected -> Show ALL Area Markers using Clusters
     else:
-        top_areas = data[data["State"] == current_state]["Area_Clean"].value_counts().head(15).index
-        for area_clean in top_areas:
+        all_areas = data[data["State"] == current_state]["Area_Clean"].dropna().unique()
+        marker_cluster = MarkerCluster(name="Areas").add_to(m)
+        
+        for area_clean in all_areas:
             disp_area = display_name(area_clean)
             coords = get_area_coords(disp_area, current_state)
             if coords:
@@ -257,7 +261,7 @@ def prediction_page(data, results):
                     fill=True, fill_color="#10B981" if is_sel else "#F59E0B", fill_opacity=0.9 if is_sel else 0.7,
                     tooltip=folium.Tooltip(f"<b>{disp_area}</b> (Click to select area)", sticky=True),
                     popup=f"AREA:{disp_area}"
-                ).add_to(m)
+                ).add_to(marker_cluster)
 
     map_data = st_folium(m, height=350, use_container_width=True, key="malaysia_map")
     
@@ -274,8 +278,6 @@ def prediction_page(data, results):
         elif popup_txt.startswith("AREA:"):
             clicked_area = popup_txt.split(":")[1]
             st.session_state["selected_area"] = clicked_area
-            st.session_state["map_center"] = get_area_coords(clicked_area, current_state)
-            st.session_state["map_zoom"] = 12
             st.rerun()
 
     # Location Readout & Controls
@@ -363,7 +365,7 @@ def prediction_page(data, results):
 FIGURE_GROUPS = {
     "Data quality": [("fig01_raw_target_distribution.png", "House prices are heavily skewed."), ("fig10_outlier_before_after.png", "Extreme values removed by outlier cleaning.")],
     "Area quality and coverage": [("fig14_top20_areas.png", "The 20 areas with the most records in the dataset."), ("fig16_area_price_distribution.png", "How median price varies across different areas.")],
-    "Location and property": [("fig19_state_price_distribution.png", "Median price differs a lot from state to state."), ("fig20_property_type_price.png", "Bungalows and semi-detached homes cost more.")],
+    "Location and property": [("fig18_state_counts_clean.png", "Number of records per state after cleaning."),("fig19_state_price_distribution.png", "Median price differs a lot from state to state."), ("fig20_property_type_price.png", "Bungalows and semi-detached homes cost more.")],
 }
 
 def insights_page(data):
