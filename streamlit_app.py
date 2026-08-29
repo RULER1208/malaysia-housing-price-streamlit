@@ -195,9 +195,15 @@ header[data-testid="stHeader"] { background:transparent!important; }
 .mh-chiprow { display:flex; flex-wrap:wrap; gap:10px; margin-top:10px; }
 .mh-chip {
     display:inline-flex; align-items:center; gap:8px; background:#FFFFFF; border:1px solid var(--border);
-    padding:8px 12px; border-radius:999px; color:#344054; font-size:.92rem; box-shadow:0 2px 10px rgba(15,23,42,.04);
+    padding:12px 18px; min-height:54px; border-radius:999px; color:#344054; font-size:1rem; box-shadow:0 2px 10px rgba(15,23,42,.04);
 }
 .mh-chip strong { color:#0F172A; }
+.mh-subcard {
+    background:#FFFFFF; border:1px solid var(--border); border-radius:16px; padding:16px 18px; box-shadow:0 4px 14px rgba(15,23,42,.05);
+}
+.mh-map-wrap {
+    border:1px solid var(--border); border-radius:18px; overflow:hidden; box-shadow:0 8px 22px rgba(15,23,42,.06); background:#FFF;
+}
 .mh-map-tip {
     background:linear-gradient(180deg, #FFFFFF 0%, #F9FBFF 100%);
     border:1px solid var(--border); border-radius:14px; padding:12px 14px; color:#475467;
@@ -224,13 +230,13 @@ div[role="radiogroup"] { gap: 15px; }
 /* Property selector: direct-click buttons, no overlay / no empty box */
 div[data-testid="stVerticalBlock"]:has(.property-grid-anchor) div.stButton > button[kind="secondary"],
 div[data-testid="stVerticalBlock"]:has(.property-grid-anchor) div.stButton > button[kind="primary"] {
-    min-height: 94px !important;
+    min-height: 88px !important;
     border-radius: 18px !important;
     white-space: pre-line !important;
-    line-height: 1.3 !important;
-    padding: 14px 12px !important;
+    line-height: 1.28 !important;
+    padding: 12px 10px !important;
     font-weight: 650 !important;
-    font-size: 1.02rem !important;
+    font-size: .98rem !important;
     text-align: center !important;
     box-shadow: 0 6px 18px rgba(15,23,42,.06) !important;
 }
@@ -253,13 +259,18 @@ div[data-testid="stVerticalBlock"]:has(.property-grid-anchor) div.stButton > but
     border: none !important;
 }
 
-/* Neat number input */
-div[data-testid="stNumberInputContainer"] {
+/* Neat inputs */
+div[data-testid="stNumberInputContainer"], div[data-baseweb="input"] {
     background:#FFFFFF; border:1px solid var(--border); border-radius:14px; padding:2px 6px;
+}
+
+button[kind="secondary"] {
+    border-radius: 14px !important;
 }
 
 @media (max-width: 900px) {
     .mh-stats { grid-template-columns:1fr; }
+    .mh-chip { width:100%; justify-content:center; }
 }
 </style>
 """, unsafe_allow_html=True)
@@ -419,7 +430,7 @@ def prediction_page(data, results):
     map_center = st.session_state.get("map_center", [4.2105, 108.9758] if not current_state else STATE_COORDS.get(current_state, [4.2105, 108.9758]))
     map_zoom = st.session_state.get("map_zoom", 6 if not current_state else 9)
     
-    m = folium.Map(location=map_center, zoom_start=map_zoom, tiles="CartoDB positron", control_scale=True)
+    m = folium.Map(location=map_center, zoom_start=map_zoom, tiles="OpenStreetMap", control_scale=True, zoom_control=True, prefer_canvas=True)
 
     if not current_state:
         for st_name in available_states:
@@ -455,7 +466,9 @@ def prediction_page(data, results):
                     popup=f"AREA:{disp_area}"
                 ).add_to(marker_cluster)
 
-    map_data = st_folium(m, height=430, use_container_width=True, key="malaysia_map")
+    st.markdown("<div class='mh-map-wrap'>", unsafe_allow_html=True)
+    map_data = st_folium(m, height=470, use_container_width=True, key="malaysia_map")
+    st.markdown("</div>", unsafe_allow_html=True)
     
     if map_data and map_data.get("last_object_clicked_popup"):
         popup_txt = map_data["last_object_clicked_popup"]
@@ -473,7 +486,7 @@ def prediction_page(data, results):
             st.session_state["map_zoom"] = 12
             st.rerun()
 
-    col_loc1, col_loc2 = st.columns([4, 1])
+    col_loc1, col_loc2 = st.columns([5, 1.25])
     with col_loc1:
         st.markdown(f"<div class='mh-chiprow'><span class='mh-chip'>📍 <strong>State:</strong> {current_state or 'Not Selected'}</span><span class='mh-chip'>🗺️ <strong>Area:</strong> {current_area or 'Not Selected'}</span></div>", unsafe_allow_html=True)
     with col_loc2:
@@ -482,6 +495,7 @@ def prediction_page(data, results):
     st.markdown('<hr class="mh-rule">', unsafe_allow_html=True)
     st.markdown("<h3 class='mh-section-title'>🏡 2. Property Details</h3>", unsafe_allow_html=True)
     st.markdown("<p class='mh-section-note'>Choose a property type, then set the tenure and median price per square foot.</p>", unsafe_allow_html=True)
+    st.markdown("<div class='mh-subcard'>", unsafe_allow_html=True)
 
     # ---------------- DIRECT-CLICK PROPERTY TYPE CARDS ----------------
     field_label("Select Property Type")
@@ -520,6 +534,7 @@ def prediction_page(data, results):
 
     st.markdown('<br>', unsafe_allow_html=True)
     predict_clicked = st.button("Generate Price Estimate  →", type="primary", use_container_width=True)
+    st.markdown("</div>", unsafe_allow_html=True)
 
     # ---------------- RESULT RENDER ----------------
     if predict_clicked:
