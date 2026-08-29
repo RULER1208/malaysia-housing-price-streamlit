@@ -55,7 +55,6 @@ STATE_COORDS = {
     "Putrajaya": [2.9264, 101.6964], "Labuan": [5.2831, 115.2308]
 }
 
-# Massively expanded pre-calculated real-world coordinates for exact map pins
 HARDCODED_AREAS = {
     # Selangor
     "Sekinchan": [3.5053, 101.1036], "Tanjong Karang": [3.4267, 101.1773],
@@ -143,18 +142,19 @@ header[data-testid="stHeader"] { background:transparent!important; }
 .mh-stats .k { font-family:var(--mono); font-size:.68rem; letter-spacing:.12em; color:#9FB4D4; text-transform:uppercase; margin-bottom:3px; }
 .mh-stats .v { font-family:var(--mono); font-size:.94rem; font-weight:700; color:#FFFFFF; }
 .stButton>button[kind="primary"] { background:var(--blue); border-color:var(--blue); border-radius:11px; min-height:44px;}
-.mh-empty { background:#FFFFFF; border:1px dashed #CFD8E6; border-radius:14px; padding:52px 24px; text-align:center; color:var(--muted); margin-top:20px;}
+.mh-empty { background:#FFFFFF; border:1px dashed #CFD8E6; border-radius:14px; padding:52px 24px; text-align:center; color:var(--muted); box-shadow:var(--shadow); margin-top:20px;}
 
-/* CSS HACK: Stretches the Streamlit button over the SVG box to make it directly clickable */
-div[data-testid="stHorizontalBlock"]:has(> div:nth-child(5)) div[data-testid="column"] {
-    position: relative;
+/* CSS HACK: Clean SVG overlay for clickability without causing layout collapse */
+div[data-testid="column"]:has(.ptype-card) {
+    position: relative !important;
 }
-div[data-testid="stHorizontalBlock"]:has(> div:nth-child(5)) div[data-testid="stButton"] {
-    position: absolute; top: 0; left: 0; right: 0; bottom: 0;
-    opacity: 0; z-index: 100;
+div[data-testid="column"]:has(.ptype-card) div[data-testid="stButton"] {
+    position: absolute !important;
+    top: 0 !important; left: 0 !important; right: 0 !important; bottom: 0 !important;
+    opacity: 0 !important; z-index: 100 !important;
 }
-div[data-testid="stHorizontalBlock"]:has(> div:nth-child(5)) button {
-    width: 100%; height: 100%; cursor: pointer;
+div[data-testid="column"]:has(.ptype-card) button {
+    width: 100% !important; height: 100% !important; cursor: pointer !important;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -227,8 +227,8 @@ def get_colored_svg(ptype: str, is_selected: bool) -> str:
     else:
         svg = f'<path fill="{c_frame}" d="M12 3L2 12h3v10h14V12h3L12 3z"/><rect fill="{c_wall}" x="5" y="12" width="14" height="10"/><rect fill="{c_accent}" x="10" y="15" width="4" height="7"/>'
         
-    # Condensing into a single line string prevents Streamlit's Markdown parser from breaking the HTML with <p> tags
-    return f'<div style="border:{border}; background:{bg}; border-radius:12px; padding:15px 4px; text-align:center; height:95px; display:flex; flex-direction:column; justify-content:center; align-items:center;"><svg style="{filter_style} transition: all 0.2s ease-in-out;" width="42" height="42" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">{svg}</svg><div style="font-size:0.75rem; font-weight:650; color:{txt_color}; margin-top:8px; line-height:1.1;">{ptype}</div></div>'
+    # Standard HTML wrapping formatted correctly as a single string to avoid Streamlit <p> bugs
+    return f'<div class="ptype-card" style="border:{border}; background:{bg}; border-radius:12px; padding:15px 4px; text-align:center; display:flex; flex-direction:column; justify-content:center; align-items:center;"><svg style="{filter_style} transition: all 0.2s ease-in-out;" width="42" height="42" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">{svg}</svg><div style="font-size:0.75rem; font-weight:650; color:{txt_color}; margin-top:8px; line-height:1.1;">{ptype}</div></div>'
 
 # ---------------------------------------------------------------------------
 # LOGIC CONTROLLERS
@@ -386,18 +386,17 @@ def prediction_page(data, results):
     st.markdown('<hr class="mh-rule">', unsafe_allow_html=True)
     st.markdown("<h3 style='margin-top:0;'>🏡 2. Property Details</h3>", unsafe_allow_html=True)
 
-    # Interactive SVG Grid via CSS Overlay (Fixes leaking </div> issue)
+    # Interactive SVG Grid via CSS Overlay
     field_label("Select Property Type")
     svg_cols = st.columns(len(ptypes))
     for i, pt in enumerate(ptypes):
         with svg_cols[i]:
             is_sel = (pt == st.session_state["selected_ptype"])
             
-            # Use single-line HTML structure to prevent Markdown parser from breaking the </div> tags
-            html_str = f'<div class="ptype-card-wrapper-{i}" style="height: 0px; overflow: visible; position: relative; z-index: 1;">{get_colored_svg(pt, is_sel)}</div>'
-            st.markdown(html_str, unsafe_allow_html=True)
+            # The SVG UI element (Rendered as single string to prevent layout collapse and raw </div> printing)
+            st.markdown(get_colored_svg(pt, is_sel), unsafe_allow_html=True)
             
-            # The invisible Streamlit button covers the SVG 
+            # The transparent Streamlit button covering it
             if st.button(" ", key=f"btn_{pt}", use_container_width=True):
                 st.session_state["selected_ptype"] = pt
                 st.rerun()
@@ -518,4 +517,5 @@ def main():
     with insights: insights_page(data)
     with report: model_report_page(results)
 
-main()
+if __name__ == "__main__":
+    main()
