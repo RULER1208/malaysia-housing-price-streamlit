@@ -171,20 +171,32 @@ header[data-testid="stHeader"] { background:transparent!important; }
 
 /* Navigation Banner */
 .stTabs [role="tablist"] {
-    display:flex!important; align-items:center!important; gap:8px!important;
-    min-height:62px; padding:0 210px 0 22px!important;
-    background:var(--navy)!important; border-radius:16px!important; margin-bottom:24px!important;
-    box-shadow:var(--shadow);
+    display:flex!important;
+    align-items:center!important;
+    gap:16px!important;
+    min-height:96px;
+    padding:16px 22px!important;
+    background:linear-gradient(135deg, #15243A 0%, #1A2C4B 100%)!important;
+    border-radius:26px!important;
+    margin-bottom:28px!important;
+    box-shadow:0 14px 34px rgba(21,36,58,.16);
 }
 .stTabs [role="tablist"]::before {
-    content:"⌂  Malaysia Housing Estimator";
-    font-size:1.04rem; font-weight:700; color:#FFFFFF; margin-right:24px;
+    content:"⌂  Malaysia\AHousing Estimator";
+    white-space:pre;
+    display:block;
+    min-width:230px;
+    line-height:1.18;
+    font-size:1.14rem;
+    font-weight:800;
+    color:#FFFFFF;
+    margin-right:12px;
 }
 .stTabs [role="tab"] {
-    height:38px!important; padding:0 18px!important; border-radius:999px!important;
-    color:#B9C8DF!important; font-weight:600; background:transparent!important; border:none!important;
+    height:44px!important; padding:0 22px!important; border-radius:999px!important;
+    color:#C5D1E6!important; font-weight:700; background:transparent!important; border:none!important;
 }
-.stTabs [role="tab"][aria-selected="true"] { color:var(--navy)!important; background:#FFFFFF!important; }
+.stTabs [role="tab"][aria-selected="true"] { color:var(--navy)!important; background:#FFFFFF!important; box-shadow:0 8px 18px rgba(255,255,255,.16); }
 .stTabs [data-baseweb="tab-highlight"], .stTabs [data-baseweb="tab-border"] { display:none!important; }
 
 /* Labels & Sections */
@@ -223,6 +235,33 @@ header[data-testid="stHeader"] { background:transparent!important; }
 
 /* Custom Tenure Radio Pills layout */
 div[role="radiogroup"] { gap: 15px; }
+div[data-testid="stVerticalBlock"]:has(.tenure-anchor) div[role="radiogroup"] {
+    display:flex !important;
+    flex-wrap:wrap !important;
+    gap:12px !important;
+}
+div[data-testid="stVerticalBlock"]:has(.tenure-anchor) div[role="radiogroup"] > label {
+    background:#FFFFFF !important;
+    border:1px solid var(--border) !important;
+    border-radius:999px !important;
+    min-height:46px !important;
+    padding:8px 14px !important;
+    display:flex !important;
+    align-items:center !important;
+    box-shadow:0 4px 12px rgba(15,23,42,.04);
+}
+div[data-testid="stVerticalBlock"]:has(.tenure-anchor) div[role="radiogroup"] > label:has(input:checked) {
+    border-color:#4F6FEA !important;
+    background:#EEF3FF !important;
+    box-shadow:0 6px 16px rgba(79,111,234,.14);
+}
+div[data-testid="stVerticalBlock"]:has(.tenure-anchor) div[role="radiogroup"] p {
+    font-weight:600 !important;
+    color:#334155 !important;
+}
+div[data-testid="stVerticalBlock"]:has(.tenure-anchor) div[role="radiogroup"] > label:has(input:checked) p {
+    color:#2744B2 !important;
+}
 
 /* Property selector: direct-click buttons, no overlay / no empty box */
 div[class*="st-key-btn_"] button[kind="secondary"],
@@ -351,6 +390,15 @@ def get_property_icon(ptype: str) -> str:
 def get_property_label(ptype: str) -> str:
     return f"{get_property_icon(ptype)}\n{ptype}"
 
+@st.cache_data(show_spinner=False)
+def get_areas_for_state(data: pd.DataFrame, state_name: str):
+    dataset_areas = {
+        display_name(a)
+        for a in data[data["State"] == state_name]["Area_Clean"].dropna().unique()
+    }
+    official_areas = set(OFFICIAL_DISTRICTS.get(state_name, []))
+    return sorted(dataset_areas | official_areas)
+
 # ---------------------------------------------------------------------------
 # LOGIC CONTROLLERS
 # ---------------------------------------------------------------------------
@@ -394,11 +442,7 @@ def analyze_address(data, available_states):
                 break
                 
     if matched_state and not matched_area:
-        valid_areas = set([display_name(a) for a in data[data["State"] == matched_state]["Area_Clean"].dropna().unique()])
-        if matched_state in HARDCODED_AREAS:
-            valid_areas.update(HARDCODED_AREAS[matched_state].keys())
-        valid_areas.update(OFFICIAL_DISTRICTS.get(matched_state, []))
-            
+        valid_areas = get_areas_for_state(data, matched_state)
         for a in sorted(valid_areas, key=len, reverse=True):
             if a.lower() in addr:
                 matched_area = a
@@ -435,7 +479,7 @@ def prediction_page(data, results):
     
     st.markdown("<h3 class='mh-section-title'>📍 1. Location Selection</h3>", unsafe_allow_html=True)
     st.markdown("<p class='mh-section-note'>Select your location directly from the map. First choose a state, then the map zooms in so you can choose the area.</p>", unsafe_allow_html=True)
-    st.markdown("<div class='mh-map-tip'><b>How to use:</b> click a <b>state</b> pin first. After the map zooms in, click an <b>area</b> pin for that state. The map includes all 16 Malaysia state / federal territory entries and combines your housing-dataset localities with the official district list for nationwide coverage.</div>", unsafe_allow_html=True)
+    st.markdown("<div class='mh-map-tip'><b>How to use:</b> click a <b>state</b> pin first. After the map zooms in, click an <b>area</b> pin for that state. The state list covers all <b>16 Malaysia states / federal territories</b>, and each state's area list is built from your housing dataset plus the official <b>DOSM administrative district</b> list for that state.</div>", unsafe_allow_html=True)
 
     st.text_input("Enter your address or postcode to auto-detect location, or click the map below:", 
                   placeholder="e.g. 45400 or Sekinchan, Selangor",
@@ -457,11 +501,9 @@ def prediction_page(data, results):
                 ).add_to(m)
                 
     else:
-        all_state_areas = data[data["State"] == current_state]["Area_Clean"].dropna().unique()
         # Keep every housing-dataset locality for model compatibility, then add
         # the complete official DOSM administrative districts for nationwide coverage.
-        areas_to_plot = set([display_name(a) for a in all_state_areas])
-        areas_to_plot.update(OFFICIAL_DISTRICTS.get(current_state, []))
+        areas_to_plot = set(get_areas_for_state(data, current_state))
 
         if current_area:
             areas_to_plot.add(current_area)
@@ -543,7 +585,7 @@ def prediction_page(data, results):
     col_in1, col_in2 = st.columns(2)
     with col_in1:
         field_label("Tenure")
-        # Direct clickable horizontal radio pills for Tenure
+        st.markdown("<div class='tenure-anchor'></div>", unsafe_allow_html=True)
         tenure = st.radio("Tenure", sorted(data["Tenure"].unique()), key="pred_tenure", label_visibility="collapsed", horizontal=True)
     with col_in2:
         field_label("Median price per sq ft (RM)")
