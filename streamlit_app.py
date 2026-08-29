@@ -35,21 +35,21 @@ MODEL_FEATURES = ["State", "Area_Key", "Tenure", "Primary_Type", "Median_PSF", "
 SELECTBOX_ACCEPTS_NEW = "accept_new_options" in inspect.signature(st.selectbox).parameters
 NO_AREA = "— No specific area —"
 
-# Approximate coordinates for Malaysia States to plot on the map
+# Accurate regional coordinates for all Malaysian States & Federal Territories
 STATE_COORDS = {
-    "Johor": [1.4854, 103.7618],
+    "Johor": [1.9344, 103.3587],
     "Kedah": [6.1184, 100.3685],
-    "Kelantan": [6.1248, 102.2386],
-    "Melaka": [2.1896, 102.2501],
+    "Kelantan": [5.3500, 102.0000],
+    "Melaka": [2.2500, 102.2500],
     "Negeri Sembilan": [2.7258, 101.9424],
-    "Pahang": [3.8126, 103.3256],
+    "Pahang": [3.8126, 102.8000],
     "Penang": [5.4141, 100.3288],
     "Perak": [4.5921, 101.0901],
     "Perlis": [6.4449, 100.2048],
-    "Sabah": [5.9750, 116.0725],
-    "Sarawak": [1.5535, 110.3593],
+    "Sabah": [5.4204, 116.7968],
+    "Sarawak": [2.5574, 113.0012],
     "Selangor": [3.0738, 101.5183],
-    "Terengganu": [5.3117, 103.1324],
+    "Terengganu": [4.7500, 103.0000],
     "Kuala Lumpur": [3.1390, 101.6869],
     "Putrajaya": [2.9264, 101.6964],
     "Labuan": [5.2831, 115.2308]
@@ -257,7 +257,7 @@ def field_label(text: str, hint: str = "") -> None:
 # ---------------------------------------------------------------------------
 def reset_prediction_form():
     for key in list(st.session_state.keys()):
-        if key.startswith("pred_"):
+        if key.startswith("pred_") or key == "selected_state":
             del st.session_state[key]
 
 
@@ -307,33 +307,62 @@ def prediction_page(data, results):
     default_txn = int(round(data["Transactions"].median()))
     psf_min, psf_max = int(data["Median_PSF"].min()), int(data["Median_PSF"].max())
 
+    available_states = sorted(data["State"].unique())
+    if "selected_state" not in st.session_state or st.session_state["selected_state"] not in available_states:
+        st.session_state["selected_state"] = available_states[0]
+
     left, right = st.columns([1, 1], gap="large")
 
     # ---------------- LEFT: inputs ----------------
     with left:
         with st.container(border=True):
 
-            field_label("Select State (Click on Map)")
+            field_label("Select State", "Click a marker point on the map")
             
-            # Map Rendering
-            m = folium.Map(location=[4.2105, 108.9758], zoom_start=5, tiles="CartoDB positron")
-            for st_name in data["State"].unique():
+            # Map configuration using reliable OpenStreetMap tiles
+            m = folium.Map(
+                location=[4.2105, 108.9758],
+                zoom_start=5,
+                tiles="OpenStreetMap"
+            )
+
+            # Draw high-contrast clickable circle markers for every state
+            current_state = st.session_state["selected_state"]
+            for st_name in available_states:
                 if st_name in STATE_COORDS:
-                    folium.Marker(
+                    is_selected = (st_name == current_state)
+                    folium.CircleMarker(
                         location=STATE_COORDS[st_name],
-                        tooltip=st_name,
-                        name=st_name
+                        radius=11 if is_selected else 8,
+                        color="#18875D" if is_selected else "#15243A",
+                        weight=3 if is_selected else 2,
+                        fill=True,
+                        fill_color="#10B981" if is_selected else "#2F6FED",
+                        fill_opacity=0.9 if is_selected else 0.75,
+                        tooltip=folium.Tooltip(f"<b>{st_name}</b> (Click to select)", sticky=True),
+                        popup=st_name
                     ).add_to(m)
 
-            map_data = st_folium(m, height=300, use_container_width=True)
+            map_data = st_folium(m, height=270, use_container_width=True, key="malaysia_map")
             
-            # Extract state from map click or set default
-            if map_data and map_data.get("last_object_clicked_tooltip"):
-                state = map_data["last_object_clicked_tooltip"]
-            else:
-                state = sorted(data["State"].unique())[0]
+            # Sync click event to session state
+            if map_data and map_data.get("last_object_clicked_popup"):
+                clicked_st = map_data["last_object_clicked_popup"]
+                if clicked_st in available_states and clicked_st != st.session_state["selected_state"]:
+                    st.session_state["selected_state"] = clicked_st
+                    st.rerun()
 
-            st.markdown(f"**Current Selected State:** {state}")
+            # State selector dropdown (kept in sync with map clicks)
+            state_idx = available_states.index(st.session_state["selected_state"])
+            state = st.selectbox(
+                "State", 
+                available_states, 
+                index=state_idx, 
+                key="pred_state_dropdown"
+            )
+            if state != st.session_state["selected_state"]:
+                st.session_state["selected_state"] = state
+                st.rerun()
 
             field_label("Area")
             area_options = [NO_AREA] + known_areas_for_state(data, state)
@@ -343,24 +372,33 @@ def prediction_page(data, results):
                     accept_new_options=True,
                     help="Pick a known area, or type one that is not listed. The "
                          "model is trained on Area, not Township; an unrecognised "
-                         "area falls back safely to broader market values.")
+                         "area falls back safely to broader market values."
+                )
             else:
                 OTHER = "Other (type below)"
-                picked = st.selectbox("Area", area_options + [OTHER],
-                                      key="pred_area_select", label_visibility="collapsed")
-                area_choice = (st.text_input("Type the area", key="pred_area_text")
-                               if picked == OTHER else picked)
+                picked = st.selectbox(
+                    "Area", area_options + [OTHER],
+                    key="pred_area_select", label_visibility="collapsed"
+                )
+                area_choice = (
+                    st.text_input("Type the area", key="pred_area_text")
+                    if picked == OTHER else picked
+                )
             area_text = "" if area_choice == NO_AREA else str(area_choice or "")
 
             c1, c2 = st.columns(2)
             with c1:
                 field_label("Property type")
-                ptype = st.selectbox("Property type", sorted(data["Primary_Type"].unique()),
-                                     key="pred_type", label_visibility="collapsed")
+                ptype = st.selectbox(
+                    "Property type", sorted(data["Primary_Type"].unique()),
+                    key="pred_type", label_visibility="collapsed"
+                )
             with c2:
                 field_label("Tenure")
-                tenure = st.selectbox("Tenure", sorted(data["Tenure"].unique()),
-                                      key="pred_tenure", label_visibility="collapsed")
+                tenure = st.selectbox(
+                    "Tenure", sorted(data["Tenure"].unique()),
+                    key="pred_tenure", label_visibility="collapsed"
+                )
 
             known_area, _ = resolve_known_area(data, state, area_text)
             reference = derive_reference(data, state, known_area, ptype, tenure)
@@ -368,14 +406,18 @@ def prediction_page(data, results):
             st.markdown('<hr class="mh-rule">', unsafe_allow_html=True)
 
             field_label("Median price per sq ft (RM)")
-            psf = st.number_input("Median price per square foot (RM)", min_value=1, step=10,
-                                  value=default_psf, key="pred_psf",
-                                  label_visibility="collapsed")
+            psf = st.number_input(
+                "Median price per square foot (RM)", min_value=1, step=10,
+                value=default_psf, key="pred_psf",
+                label_visibility="collapsed"
+            )
 
             field_label("Transactions")
-            transactions = st.number_input("Transactions", min_value=0, step=1,
-                                           value=default_txn, key="pred_txn",
-                                           label_visibility="collapsed")
+            transactions = st.number_input(
+                "Transactions", min_value=0, step=1,
+                value=default_txn, key="pred_txn",
+                label_visibility="collapsed"
+            )
 
             field_label("Model")
             labels, mapping = [], {}
@@ -383,8 +425,10 @@ def prediction_page(data, results):
                 suffix = " — Recommended" if row["Model"] == recommended else ""
                 labels.append(row["Model"] + suffix)
                 mapping[row["Model"] + suffix] = row["Model"]
-            picked_model = st.selectbox("Model", labels, index=0, key="pred_model",
-                                        label_visibility="collapsed")
+            picked_model = st.selectbox(
+                "Model", labels, index=0, key="pred_model",
+                label_visibility="collapsed"
+            )
             model_name = mapping[picked_model]
 
             if psf < psf_min or psf > psf_max:
@@ -392,12 +436,15 @@ def prediction_page(data, results):
                     f"RM {psf:,} is outside the observed range (RM {psf_min:,}–"
                     f"RM {psf_max:,}). Tree-based models do not extrapolate beyond "
                     f"values seen in training, so the estimate will stop responding "
-                    f"past a point — treat an extreme input as unreliable.")
+                    f"past a point — treat an extreme input as unreliable."
+                )
 
             b1, b2 = st.columns([2, 1])
             predict = b1.button("Predict Price  →", type="primary", use_container_width=True)
-            b2.button("Reset", type="secondary", use_container_width=True,
-                      on_click=reset_prediction_form, key="reset_prediction")
+            b2.button(
+                "Reset", type="secondary", use_container_width=True,
+                on_click=reset_prediction_form, key="reset_prediction"
+            )
 
     # ---------------- RIGHT: result ----------------
     with right:
@@ -406,14 +453,17 @@ def prediction_page(data, results):
                 '<div class="mh-empty"><div class="icon">⌂</div>'
                 '<b>Your estimate will appear here.</b>'
                 'Complete the inputs on the left, then select Predict Price.</div>',
-                unsafe_allow_html=True)
+                unsafe_allow_html=True
+            )
             return
 
         model = load_model(model_name)
         area_key = create_area_key(state, area_text)
-        features = pd.DataFrame([{"State": state, "Area_Key": area_key, "Tenure": tenure,
-                                  "Primary_Type": ptype, "Median_PSF": psf,
-                                  "Transactions": transactions}])[MODEL_FEATURES]
+        features = pd.DataFrame([{
+            "State": state, "Area_Key": area_key, "Tenure": tenure,
+            "Primary_Type": ptype, "Median_PSF": psf,
+            "Transactions": transactions
+        }])[MODEL_FEATURES]
         with st.spinner("Calculating estimate..."):
             prediction = float(model.predict(features)[0])
         metrics = results[results["Model"] == model_name].iloc[0]
@@ -452,10 +502,13 @@ def prediction_page(data, results):
                 f"- **Area recognised:** {'Yes' if known_area else 'No'}\n"
                 f"- **Area seen during model training:** {'Yes' if area_seen else 'No'}\n"
                 f"- **Broader state reference values used:** "
-                f"{'No' if known_area else 'Yes'}")
-            st.caption("These describe where the suggested typical values came "
-                       "from. The prediction itself used exactly the Median PSF "
-                       "and Transactions shown above.")
+                f"{'No' if known_area else 'Yes'}"
+            )
+            st.caption(
+                "These describe where the suggested typical values came "
+                "from. The prediction itself used exactly the Median PSF "
+                "and Transactions shown above."
+            )
 
 FIGURE_GROUPS = {
     "Data quality": [
@@ -489,8 +542,10 @@ FIGURE_GROUPS = {
 # PAGE 2 - MARKET INSIGHTS
 # ---------------------------------------------------------------------------
 def insights_page(data):
-    view = st.radio("View", ["Market Explorer", "Visual Insights"],
-                    horizontal=True, label_visibility="collapsed", key="insights_view")
+    view = st.radio(
+        "View", ["Market Explorer", "Visual Insights"],
+        horizontal=True, label_visibility="collapsed", key="insights_view"
+    )
     if view == "Market Explorer":
         st.markdown("#### Historical 2025 dataset exploration")
         a, b, c, d = st.columns(4)
@@ -512,8 +567,10 @@ def insights_page(data):
             m3.metric("Median PSF", f"RM {subset['Median_PSF'].median():,.0f}")
             m4.metric("Median transactions", f"{subset['Transactions'].median():,.0f}")
             with st.expander("View matching historical records"):
-                show = subset[["Township", "Area_Clean", "State", "Primary_Type",
-                               "Tenure", "Median_Price", "Median_PSF", "Transactions"]].copy()
+                show = subset[[
+                    "Township", "Area_Clean", "State", "Primary_Type",
+                    "Tenure", "Median_Price", "Median_PSF", "Transactions"
+                ]].copy()
                 st.dataframe(show, use_container_width=True, hide_index=True)
     else:
         group = st.selectbox("Insight category", list(FIGURE_GROUPS))
@@ -551,11 +608,13 @@ def model_report_page(results):
             st.image(str(path), use_container_width=True)
             st.markdown(f'<p class="mh-fig-caption">{caption}</p>', unsafe_allow_html=True)
     with st.expander("Key limitations"):
-        st.markdown("- Some Areas contain very few records.\n"
-                    "- Completely unseen Areas are harder than previously observed Areas.\n"
-                    "- Median PSF remains required market information.\n"
-                    "- The dataset is a static 2025 snapshot.\n"
-                    "- Results are township-level medians, not individual-property valuations.")
+        st.markdown(
+            "- Some Areas contain very few records.\n"
+            "- Completely unseen Areas are harder than previously observed Areas.\n"
+            "- Median PSF remains required market information.\n"
+            "- The dataset is a static 2025 snapshot.\n"
+            "- Results are township-level medians, not individual-property valuations."
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -565,9 +624,11 @@ def main():
     missing = [p.name for p in [DATA_PATH, RESULTS_PATH] if not p.exists()]
     if missing:
         st.error("Missing required files: " + ", ".join(missing)); st.stop()
-    data = load_data(); results = load_results()
+    data = load_data()
+    results = load_results()
     pred, insights, report = st.tabs(
-        ["Price Prediction", "Market Insights", "Model Report"])
+        ["Price Prediction", "Market Insights", "Model Report"]
+    )
     with pred: prediction_page(data, results)
     with insights: insights_page(data)
     with report: model_report_page(results)
