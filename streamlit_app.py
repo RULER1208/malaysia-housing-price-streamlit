@@ -54,16 +54,29 @@ STATE_COORDS = {
 }
 
 HARDCODED_AREAS = {
-    "Skudai": [1.5333, 103.6667], "Tebrau": [1.5833, 103.7500], "Pasir Gudang": [1.4703, 103.8966], 
-    "Kulai": [1.6561, 103.6023], "Johor Bahru": [1.4927, 103.7414], "Batu Pahat": [1.8548, 102.9325],
-    "Kluang": [2.0251, 103.3328], "Muar": [2.0442, 102.5689], "Sekinchan": [3.5053, 101.1036], 
-    "Tanjong Karang": [3.4267, 101.1773], "Petaling Jaya": [3.1073, 101.6067], "Shah Alam": [3.0738, 101.5183], 
-    "Subang Jaya": [3.0471, 101.5832], "Klang": [3.0449, 101.4456], "Puchong": [3.0246, 101.6168], 
-    "Kajang": [2.9935, 101.7892], "Cheras": [3.1062, 101.7690], "Tapah": [4.2000, 101.2600], 
-    "Ipoh": [4.5975, 101.0901], "Taiping": [4.8500, 100.7333], "Georgetown": [5.4141, 100.3288], 
-    "Butterworth": [5.3995, 100.3638], "Bayan Lepas": [5.2952, 100.2588], "Bemban": [2.2667, 102.3667], 
-    "Jasin": [2.3130, 102.4312], "Seremban": [2.7297, 101.9381], "Alor Setar": [6.1210, 100.3601], 
-    "Kuantan": [3.8077, 103.3260], "Kota Kinabalu": [5.9804, 116.0735], "Kuching": [1.5533, 110.3592]
+    # Selangor (Expanded for high accuracy)
+    "Sekinchan": [3.5053, 101.1036], "Tanjong Karang": [3.4267, 101.1773],
+    "Pandamaran": [3.0132, 101.4172], "Kuala Selangor": [3.3364, 101.2504],
+    "Sabak Bernam": [3.7667, 100.9833], "Sungai Besar": [3.6833, 100.9833],
+    "Banting": [2.8155, 101.4975], "Petaling Jaya": [3.1073, 101.6067], 
+    "Shah Alam": [3.0738, 101.5183], "Subang Jaya": [3.0471, 101.5832],
+    "Klang": [3.0449, 101.4456], "Puchong": [3.0246, 101.6168], 
+    "Kajang": [2.9935, 101.7892], "Cheras": [3.1062, 101.7690],
+    "Rawang": [3.3213, 101.5822], "Cyberjaya": [2.9228, 101.6572],
+    # Johor
+    "Skudai": [1.5333, 103.6667], "Tebrau": [1.5833, 103.7500], 
+    "Pasir Gudang": [1.4703, 103.8966], "Kulai": [1.6561, 103.6023], 
+    "Johor Bahru": [1.4927, 103.7414], "Batu Pahat": [1.8548, 102.9325],
+    "Kluang": [2.0251, 103.3328], "Muar": [2.0442, 102.5689], 
+    # Perak
+    "Tapah": [4.2000, 101.2600], "Ipoh": [4.5975, 101.0901],
+    "Taiping": [4.8500, 100.7333], "Teluk Intan": [4.0259, 101.0213],
+    # Penang & Others
+    "Georgetown": [5.4141, 100.3288], "Butterworth": [5.3995, 100.3638], 
+    "Bayan Lepas": [5.2952, 100.2588], "Bemban": [2.2667, 102.3667], 
+    "Jasin": [2.3130, 102.4312], "Seremban": [2.7297, 101.9381], 
+    "Alor Setar": [6.1210, 100.3601], "Kuantan": [3.8077, 103.3260], 
+    "Kota Kinabalu": [5.9804, 116.0735], "Kuching": [1.5533, 110.3592]
 }
 
 # ---------------------------------------------------------------------------
@@ -101,19 +114,17 @@ header[data-testid="stHeader"] { background:transparent!important; }
 .stButton>button[kind="primary"] { background:var(--blue); border-color:var(--blue); border-radius:11px; min-height:44px;}
 .mh-empty { background:#FFFFFF; border:1px dashed #CFD8E6; border-radius:14px; padding:52px 24px; text-align:center; color:var(--muted); margin-top:20px;}
 
-/* CSS HACK: Stretches the Streamlit button over the SVG box to make it directly clickable */
-div[data-testid="column"]:has(svg) {
-    position: relative !important;
+/* CSS HACK: Hide the Streamlit button in the Property Type grid by pulling it OVER the SVG */
+/* We target horizontal blocks that contain exactly 9 columns (our property types) */
+div[data-testid="stHorizontalBlock"]:has(> div:nth-child(5)) div[data-testid="column"] {
+    position: relative;
 }
-div[data-testid="column"]:has(svg) div[data-testid="stButton"] {
-    position: absolute !important;
-    top: 0 !important; left: 0 !important;
-    width: 100% !important; height: 100% !important;
-    z-index: 999 !important;
+div[data-testid="stHorizontalBlock"]:has(> div:nth-child(5)) div[data-testid="stButton"] {
+    position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+    opacity: 0; z-index: 100;
 }
-div[data-testid="column"]:has(svg) button {
-    width: 100% !important; height: 100% !important;
-    opacity: 0 !important; cursor: pointer !important;
+div[data-testid="stHorizontalBlock"]:has(> div:nth-child(5)) button {
+    width: 100%; height: 100%; cursor: pointer;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -136,6 +147,7 @@ def load_model(name):
 
 @st.cache_data(show_spinner=False)
 def get_area_coords(area_name: str, state_name: str):
+    """Retrieve precise map coordinates for an area with tight fallback scatter."""
     if area_name in HARDCODED_AREAS:
         return HARDCODED_AREAS[area_name]
     
@@ -148,22 +160,24 @@ def get_area_coords(area_name: str, state_name: str):
                 return [loc.latitude, loc.longitude]
         except: pass
             
+    # Fallback scatter: tightly clustered around state center to prevent plotting in the ocean
     base_coords = STATE_COORDS.get(state_name, [4.2105, 108.9758])
     hash_val = int(hashlib.md5(area_name.encode('utf-8')).hexdigest(), 16)
-    lat_offset = ((hash_val % 1000) / 1000.0 - 0.5) * 0.8
-    lon_offset = (((hash_val // 1000) % 1000) / 1000.0 - 0.5) * 0.8
+    lat_offset = ((hash_val % 1000) / 1000.0 - 0.5) * 0.15
+    lon_offset = (((hash_val // 1000) % 1000) / 1000.0 - 0.5) * 0.15
     return [base_coords[0] + lat_offset, base_coords[1] + lon_offset]
 
 def field_label(text: str) -> None:
     st.markdown(f'<div class="mh-label">{text}</div>', unsafe_allow_html=True)
 
 def get_colored_svg(ptype: str, is_selected: bool) -> str:
-    c_roof = "#E63946"  # Red
-    c_wall = "#F1FAEE"  # Off-white
-    c_door = "#1D3557"  # Navy
-    c_glass = "#A8DADC" # Light Blue
-    c_frame = "#457B9D" # Muted Blue
-    c_accent = "#F4A261" # Orange
+    """Returns a vibrant, multi-colored SVG tailored to property types."""
+    c_roof = "#E63946"  
+    c_wall = "#F1FAEE"  
+    c_door = "#1D3557"  
+    c_glass = "#A8DADC" 
+    c_frame = "#457B9D" 
+    c_accent = "#F4A261" 
     
     filter_style = "filter: grayscale(0%) opacity(100%); transform: scale(1.05);" if is_selected else "filter: grayscale(100%) opacity(40%);"
     
@@ -186,21 +200,22 @@ def get_colored_svg(ptype: str, is_selected: bool) -> str:
 # LOGIC CONTROLLERS
 # ---------------------------------------------------------------------------
 def reset_location_state():
+    """Explicitly reset location logic including the text input box."""
     st.session_state["selected_state"] = None
     st.session_state["selected_area"] = None
     st.session_state["map_center"] = [4.2105, 108.9758]
     st.session_state["map_zoom"] = 6
-    st.session_state["address_input"] = ""
+    st.session_state["address_input"] = "" 
 
 def analyze_address(data, available_states):
-    """Detects Postcodes & Text directly and extracts State & Area via Geopy."""
+    """Fired when user types an address. Detects Postcodes & Text, updates map zoom."""
     addr = st.session_state.get("address_input", "").lower()
     if not addr: return
 
     matched_state = None
     matched_area = None
     
-    # 1. Postcode Geocoding Check
+    # 1. Check for exactly 5 digits (Postcode)
     postcode_match = re.search(r'\b\d{5}\b', addr)
     if postcode_match and HAS_GEOPY:
         postcode = postcode_match.group()
@@ -220,7 +235,7 @@ def analyze_address(data, available_states):
                     matched_area = display_name(raw_area)
         except: pass
 
-    # 2. String Match Fallback
+    # 2. String Match Fallback if Postcode fails or isn't present
     if not matched_state:
         for st_name in sorted(available_states, key=len, reverse=True):
             if st_name.lower() in addr:
@@ -267,7 +282,7 @@ def prediction_page(data, results):
     
     st.markdown("<h3 style='margin-top:0;'>📍 1. Location Selection</h3>", unsafe_allow_html=True)
     
-    st.text_input("Enter your address/postcode to auto-detect location, or click the map below:", 
+    st.text_input("Enter your address or postcode to auto-detect location, or click the map below:", 
                   placeholder="e.g. 45400 or Sekinchan, Selangor",
                   key="address_input", on_change=analyze_address, args=(data, available_states))
 
@@ -287,9 +302,8 @@ def prediction_page(data, results):
                     popup=f"STATE:{st_name}"
                 ).add_to(m)
                 
-    # Map Mode 2: Dynamic Area Drill-Down
+    # Map Mode 2: Area Drill-Down using Marker Clusters
     else:
-        # Load all CSV areas for the current state, and include the user's custom area if Geopy found one
         all_state_areas = data[data["State"] == current_state]["Area_Clean"].dropna().unique()
         areas_to_plot = set([display_name(a) for a in all_state_areas])
         if current_area:
@@ -328,6 +342,7 @@ def prediction_page(data, results):
             st.session_state["map_zoom"] = 12
             st.rerun()
 
+    # Location Readout & Controls
     col_loc1, col_loc2 = st.columns([4, 1])
     with col_loc1:
         st.markdown(f"**State:** {current_state or 'Not Selected'} &nbsp; | &nbsp; **Area:** {current_area or 'Not Selected'}")
@@ -355,12 +370,12 @@ def prediction_page(data, results):
             </div>
             ''', unsafe_allow_html=True)
             
-            # 2. The invisible Streamlit button captures clicks perfectly over the SVG!
+            # 2. Invisible Streamlit button covers the SVG
             if st.button(" ", key=f"btn_{pt}", use_container_width=True):
                 st.session_state["selected_ptype"] = pt
                 st.rerun()
 
-    # Numerical Inputs (Transactions Removed)
+    # Numerical Inputs (Transactions Removed from UI)
     col_in1, col_in2 = st.columns(2)
     with col_in1:
         field_label("Tenure")
@@ -375,14 +390,15 @@ def prediction_page(data, results):
     # ---------------- RESULT RENDER ----------------
     if predict_clicked:
         if not current_state or not current_area:
-            st.error("Please select both a State and an Area from the map or address input before predicting.")
+            st.error("Please click a State, and then click an Area on the map before predicting.")
             return
 
         model = load_model(recommended)
+        from area_preprocessing import create_area_key
         area_key = create_area_key(current_state, current_area)
         ptype = st.session_state["selected_ptype"]
         
-        # We silently inject the median historical transactions into the features dataframe to keep the model happy
+        # Transactions injected silently in the background
         transactions = int(round(data["Transactions"].median()))
         
         features = pd.DataFrame([{
