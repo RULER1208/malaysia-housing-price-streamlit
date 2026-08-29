@@ -37,6 +37,7 @@ st.set_page_config(
 # ---------------------------------------------------------------------------
 APP_DIR = Path(__file__).resolve().parent
 DATA_PATH = APP_DIR / "malaysia_house_price_cleaned_with_area.csv"
+MAP_DATA_PATH = APP_DIR / "malaysia_house_price_data_2025.csv"
 RESULTS_PATH = APP_DIR / "model_results.csv"
 MODELS_DIR = APP_DIR / "models"
 FIGURES_DIR = APP_DIR / "figures"
@@ -56,72 +57,253 @@ STATE_COORDS = {
 }
 
 
-# Official Malaysia administrative-district coverage.
-# DOSM uses 16 state-level units and 160 administrative districts in total.
-# Perlis and the three Federal Territories are represented by the state/territory
-# itself because they are not subdivided in the DOSM district dataset.
-OFFICIAL_DISTRICTS = {
-    "Johor": ["Batu Pahat", "Johor Bahru", "Kluang", "Kota Tinggi", "Kulai", "Mersing", "Muar", "Pontian", "Segamat", "Tangkak"],
-    "Kedah": ["Baling", "Bandar Baharu", "Kota Setar", "Kuala Muda", "Kubang Pasu", "Kulim", "Langkawi", "Padang Terap", "Pendang", "Pokok Sena", "Sik", "Yan"],
-    "Kelantan": ["Bachok", "Kota Bharu", "Machang", "Pasir Mas", "Pasir Puteh", "Tanah Merah", "Tumpat", "Gua Musang", "Kuala Krai", "Jeli", "Kecil Lojing"],
-    "Melaka": ["Alor Gajah", "Jasin", "Melaka Tengah"],
-    "Negeri Sembilan": ["Jelebu", "Jempol", "Kuala Pilah", "Port Dickson", "Rembau", "Seremban", "Tampin"],
-    "Pahang": ["Bentong", "Bera", "Cameron Highlands", "Jerantut", "Kuantan", "Lipis", "Maran", "Pekan", "Raub", "Rompin", "Temerloh"],
-    "Penang": ["Barat Daya", "Seberang Perai Selatan", "Seberang Perai Tengah", "Seberang Perai Utara", "Timur Laut"],
-    "Perak": ["Batang Padang", "Manjung", "Kinta", "Kerian", "Kuala Kangsar", "Larut & Matang", "Hilir Perak", "Hulu Perak", "Perak Tengah", "Kampar", "Muallim", "Bagan Datuk", "Selama"],
-    "Perlis": ["Perlis"],
-    "Sabah": ["Tawau", "Lahad Datu", "Semporna", "Sandakan", "Kinabatangan", "Beluran", "Kota Kinabalu", "Ranau", "Kota Belud", "Tuaran", "Penampang", "Papar", "Kudat", "Kota Marudu", "Pitas", "Beaufort", "Kuala Penyu", "Sipitang", "Tenom", "Nabawan", "Keningau", "Tambunan", "Kunak", "Tongod", "Putatan", "Telupid", "Kalabakan"],
-    "Sarawak": ["Kuching", "Bau", "Lundu", "Samarahan", "Serian", "Simunjan", "Sri Aman", "Lubok Antu", "Betong", "Saratok", "Sarikei", "Maradong", "Daro", "Julau", "Sibu", "Dalat", "Mukah", "Kanowit", "Bintulu", "Tatau", "Kapit", "Song", "Belaga", "Miri", "Marudi", "Limbang", "Lawas", "Matu", "Asajaya", "Pakan", "Selangau", "Tebedu", "Pusa", "Kabong", "Tanjung Manis", "Sebauh", "Bukit Mabong", "Subis", "Beluru", "Telang Usan"],
-    "Selangor": ["Gombak", "Hulu Langat", "Hulu Selangor", "Klang", "Kuala Langat", "Kuala Selangor", "Petaling", "Sabak Bernam", "Sepang"],
-    "Terengganu": ["Besut", "Dungun", "Hulu Terengganu", "Kemaman", "Kuala Nerus", "Kuala Terengganu", "Marang", "Setiu"],
-    "Kuala Lumpur": ["Kuala Lumpur"],
-    "Labuan": ["Labuan"],
-    "Putrajaya": ["Putrajaya"],
-}
+# ---------------------------------------------------------------------------
+# MAP COVERAGE
+# ---------------------------------------------------------------------------
+# Nationwide map coverage combines three layers:
+# 1) every State -> Area pair in the uploaded 2025 housing dataset,
+# 2) all 160 DOSM administrative-district units across Malaysia, and
+# 3) useful official/local subdivisions for the four DOSM state-level units
+#    that are not split into lower administrative districts in that dataset.
+#
+# The prediction model still receives the selected location directly. Its
+# OneHotEncoder was trained with handle_unknown="infrequent_if_exist", so
+# official locations absent from the housing data remain valid inputs but are
+# identified in the result as out-of-dataset area estimates.
+
+OFFICIAL_DISTRICTS = {'Johor': ['Batu Pahat',
+           'Johor Bahru',
+           'Kluang',
+           'Kota Tinggi',
+           'Kulai',
+           'Mersing',
+           'Muar',
+           'Pontian',
+           'Segamat',
+           'Tangkak'],
+ 'Kedah': ['Baling',
+           'Bandar Baharu',
+           'Kota Setar',
+           'Kuala Muda',
+           'Kubang Pasu',
+           'Kulim',
+           'Langkawi',
+           'Padang Terap',
+           'Pendang',
+           'Pokok Sena',
+           'Sik',
+           'Yan'],
+ 'Kelantan': ['Bachok',
+              'Kota Bharu',
+              'Machang',
+              'Pasir Mas',
+              'Pasir Puteh',
+              'Tanah Merah',
+              'Tumpat',
+              'Gua Musang',
+              'Kuala Krai',
+              'Jeli',
+              'Kecil Lojing'],
+ 'Melaka': ['Alor Gajah', 'Jasin', 'Melaka Tengah'],
+ 'Negeri Sembilan': ['Jelebu', 'Jempol', 'Kuala Pilah', 'Port Dickson', 'Rembau', 'Seremban', 'Tampin'],
+ 'Pahang': ['Bentong',
+            'Bera',
+            'Cameron Highlands',
+            'Jerantut',
+            'Kuantan',
+            'Lipis',
+            'Maran',
+            'Pekan',
+            'Raub',
+            'Rompin',
+            'Temerloh'],
+ 'Penang': ['Barat Daya',
+            'Seberang Perai Selatan',
+            'Seberang Perai Tengah',
+            'Seberang Perai Utara',
+            'Timur Laut'],
+ 'Perak': ['Batang Padang',
+           'Manjung',
+           'Kinta',
+           'Kerian',
+           'Kuala Kangsar',
+           'Larut & Matang',
+           'Hilir Perak',
+           'Hulu Perak',
+           'Perak Tengah',
+           'Kampar',
+           'Muallim',
+           'Bagan Datuk',
+           'Selama'],
+ 'Perlis': ['Perlis'],
+ 'Sabah': ['Tawau',
+           'Lahad Datu',
+           'Semporna',
+           'Sandakan',
+           'Kinabatangan',
+           'Beluran',
+           'Kota Kinabalu',
+           'Ranau',
+           'Kota Belud',
+           'Tuaran',
+           'Penampang',
+           'Papar',
+           'Kudat',
+           'Kota Marudu',
+           'Pitas',
+           'Beaufort',
+           'Kuala Penyu',
+           'Sipitang',
+           'Tenom',
+           'Nabawan',
+           'Keningau',
+           'Tambunan',
+           'Kunak',
+           'Tongod',
+           'Putatan',
+           'Telupid',
+           'Kalabakan'],
+ 'Sarawak': ['Kuching',
+             'Bau',
+             'Lundu',
+             'Samarahan',
+             'Serian',
+             'Simunjan',
+             'Sri Aman',
+             'Lubok Antu',
+             'Betong',
+             'Saratok',
+             'Sarikei',
+             'Maradong',
+             'Daro',
+             'Julau',
+             'Sibu',
+             'Dalat',
+             'Mukah',
+             'Kanowit',
+             'Bintulu',
+             'Tatau',
+             'Kapit',
+             'Song',
+             'Belaga',
+             'Miri',
+             'Marudi',
+             'Limbang',
+             'Lawas',
+             'Matu',
+             'Asajaya',
+             'Pakan',
+             'Selangau',
+             'Tebedu',
+             'Pusa',
+             'Kabong',
+             'Tanjung Manis',
+             'Sebauh',
+             'Bukit Mabong',
+             'Subis',
+             'Beluru',
+             'Telang Usan'],
+ 'Selangor': ['Gombak',
+              'Hulu Langat',
+              'Hulu Selangor',
+              'Klang',
+              'Kuala Langat',
+              'Kuala Selangor',
+              'Petaling',
+              'Sabak Bernam',
+              'Sepang'],
+ 'Terengganu': ['Besut',
+                'Dungun',
+                'Hulu Terengganu',
+                'Kemaman',
+                'Kuala Nerus',
+                'Kuala Terengganu',
+                'Marang',
+                'Setiu'],
+ 'Kuala Lumpur': ['Kuala Lumpur'],
+ 'Labuan': ['Labuan'],
+ 'Putrajaya': ['Putrajaya']}
 
 assert len(OFFICIAL_DISTRICTS) == 16
 assert sum(len(v) for v in OFFICIAL_DISTRICTS.values()) == 160
 
-# Extra official/local planning areas for the four DOSM state-level units that
-# do not have lower administrative districts in the 160-district dataset.
-# These are used for MAP SELECTION only; model compatibility is handled separately.
-SPECIAL_DISPLAY_AREAS = {
-    # Perbadanan Putrajaya: 20 precincts
-    "Putrajaya": [f"Precinct {i}" for i in range(1, 21)],
+SPECIAL_DISPLAY_AREAS = {'Putrajaya': ['Precinct 1',
+               'Precinct 2',
+               'Precinct 3',
+               'Precinct 4',
+               'Precinct 5',
+               'Precinct 6',
+               'Precinct 7',
+               'Precinct 8',
+               'Precinct 9',
+               'Precinct 10',
+               'Precinct 11',
+               'Precinct 12',
+               'Precinct 13',
+               'Precinct 14',
+               'Precinct 15',
+               'Precinct 16',
+               'Precinct 17',
+               'Precinct 18',
+               'Precinct 19',
+               'Precinct 20'],
+ 'Perlis': ['Titi Tinggi',
+            'Beseri',
+            'Chuping',
+            'Paya',
+            'Padang Siding',
+            'Abi',
+            'Padang Pauh',
+            'Ngulang',
+            'Oran',
+            'Kurong Batang',
+            'Arau',
+            'Kechor',
+            'Sena',
+            'Sungai Adam',
+            'Kurong Anai',
+            'Jejawi',
+            'Kuala Perlis',
+            'Wang Bintong',
+            'Seriab',
+            'Kayang',
+            'Utan Aji',
+            'Sanglang'],
+ 'Kuala Lumpur': ['City Centre',
+                  'Wangsa Maju - Maluri',
+                  'Bukit Jalil - Seputeh',
+                  'Bandar Tun Razak - Sungai Besi',
+                  'Sentul - Menjalara',
+                  'Damansara - Penchala'],
+ 'Labuan': ['Batu Arang',
+            'Batu Manikar',
+            'Bebuloh',
+            'Belukut',
+            'Bukit Kallam',
+            'Bukit Kuda',
+            'Durian Tunjong',
+            'Ganggarak',
+            'Gersik/Saguking',
+            'Kerupang/Nagalang',
+            'Kilan/Pulau Akar',
+            'Lajau',
+            'Layang-Layangan',
+            'Lubuk Temiang',
+            'Pantai',
+            'Patau-Patau 1',
+            'Patau-Patau 2',
+            'Pohon Batu',
+            'Rancha-Rancha',
+            'Sungai Bangat',
+            'Sungai Bedaun',
+            'Sungai Buton',
+            'Sungai Keling',
+            'Sungai Labu',
+            'Sungai Lada',
+            'Sungai Miri',
+            'Tanjung Aru']}
 
-    # Perlis: 22 mukim
-    "Perlis": [
-        "Titi Tinggi", "Beseri", "Chuping", "Paya", "Padang Siding", "Abi",
-        "Padang Pauh", "Ngulang", "Oran", "Kurong Batang", "Arau", "Kechor",
-        "Sena", "Sungai Adam", "Kurong Anai", "Jejawi", "Kuala Perlis",
-        "Wang Bintong", "Seriab", "Kayang", "Utan Aji", "Sanglang",
-    ],
-
-    # DBKL: 6 strategic planning zones
-    "Kuala Lumpur": [
-        "City Centre", "Wangsa Maju - Maluri", "Bukit Jalil - Seputeh",
-        "Bandar Tun Razak - Sungai Besi", "Sentul - Menjalara",
-        "Damansara - Penchala",
-    ],
-
-    # Perbadanan Labuan JPKK village areas
-    "Labuan": [
-        "Batu Arang", "Batu Manikar", "Bebuloh", "Belukut", "Bukit Kallam",
-        "Bukit Kuda", "Durian Tunjong", "Ganggarak", "Gersik/Saguking",
-        "Kerupang/Nagalang", "Kilan/Pulau Akar", "Lajau", "Layang-Layangan",
-        "Lubuk Temiang", "Pantai", "Patau-Patau 1", "Patau-Patau 2",
-        "Pohon Batu", "Rancha-Rancha", "Sungai Bangat", "Sungai Bedaun",
-        "Sungai Buton", "Sungai Keling", "Sungai Labu", "Sungai Lada",
-        "Sungai Miri", "Tanjung Aru",
-    ],
-}
-
-SPECIAL_AREA_LABELS = {
-    "Putrajaya": "Precinct",
-    "Perlis": "Mukim",
-    "Kuala Lumpur": "Strategic zone",
-    "Labuan": "Village area",
-}
+SPECIAL_AREA_LABELS = {'Putrajaya': 'Precinct', 'Perlis': 'Mukim', 'Kuala Lumpur': 'Strategic zone', 'Labuan': 'Village area'}
 
 # Massively expanded pre-calculated real-world coordinates for exact map pins
 HARDCODED_AREAS = {
@@ -197,222 +379,328 @@ HARDCODED_AREAS = {
 st.markdown(r"""
 <style>
 :root {
-    --navy:#15243A;
-    --blue:#4F6FEA;
-    --blue-dark:#3558D8;
+    --ink:#1E293B;
     --muted:#667085;
-    --border:#E2E7EF;
+    --line:#DDE5E1;
+    --surface:#FFFFFF;
+    --page:#F5F8F6;
+    --forest:#18392F;
+    --forest-2:#234C3F;
+    --forest-3:#2C5B4B;
+    --green:#2F8F68;
+    --green-dark:#247653;
+    --green-soft:#EAF7F0;
+    --green-pale:#F4FBF7;
+    --amber:#C68A35;
     --mono:ui-monospace,"SF Mono",monospace;
-    --card:#FFFFFF;
-    --shadow:0 10px 30px rgba(21,36,58,.08);
+    --shadow:0 12px 30px rgba(24,57,47,.10);
 }
-.stApp { background:#F6F8FB; color:#172033; }
-.block-container { max-width:1200px; padding-top:14px!important; padding-bottom:2rem; }
+
+.stApp { background:var(--page); color:var(--ink); }
+.block-container { max-width:1240px; padding-top:14px!important; padding-bottom:2.2rem; }
 header[data-testid="stHeader"] { background:transparent!important; }
-div[data-testid="stToolbar"] { display:none !important; }
+div[data-testid="stToolbar"] { display:none!important; }
 #MainMenu { visibility:hidden; }
 footer { visibility:hidden; }
 
-/* Navigation Banner */
+/* ---------- HEADER / NAVIGATION ---------- */
 .stTabs [role="tablist"] {
     display:flex!important;
     align-items:center!important;
     gap:12px!important;
-    min-height:96px;
-    padding:16px 22px!important;
-    background:linear-gradient(135deg, #13233C 0%, #1D3154 58%, #28456F 100%)!important;
+    min-height:104px;
+    padding:18px 24px!important;
+    background:linear-gradient(135deg, var(--forest) 0%, var(--forest-2) 72%, #315E4F 100%)!important;
     border:1px solid rgba(255,255,255,.08)!important;
-    border-radius:24px!important;
-    margin:10px 0 28px!important;
-    box-shadow:0 16px 34px rgba(20,36,60,.18);
+    border-radius:26px!important;
+    margin:10px 0 30px!important;
+    box-shadow:0 18px 38px rgba(22,52,43,.18);
 }
 .stTabs [role="tablist"]::before {
     content:"⌂  Malaysia\AHousing Estimator";
     white-space:pre;
     display:block;
-    min-width:250px;
+    min-width:270px;
     padding:8px 12px;
-    line-height:1.16;
-    font-size:1.16rem;
+    line-height:1.18;
+    font-size:1.18rem;
     font-weight:800;
     letter-spacing:.01em;
     color:#FFFFFF;
     margin-right:14px;
 }
 .stTabs [role="tab"] {
-    height:48px!important;
-    padding:0 26px!important;
-    border-radius:14px!important;
-    color:#C9D5E8!important;
-    font-weight:700;
+    height:50px!important;
+    padding:0 28px!important;
+    border-radius:15px!important;
+    color:#D2E1DB!important;
+    font-weight:700!important;
     font-size:.98rem!important;
     background:rgba(255,255,255,.035)!important;
     border:1px solid transparent!important;
+    transition:all .18s ease!important;
 }
 .stTabs [role="tab"]:hover {
     color:#FFFFFF!important;
-    background:rgba(255,255,255,.08)!important;
+    background:rgba(255,255,255,.09)!important;
 }
 .stTabs [role="tab"][aria-selected="true"] {
-    color:#183052!important;
-    background:#F8FAFF!important;
-    border-color:rgba(255,255,255,.75)!important;
-    box-shadow:0 8px 20px rgba(7,18,36,.18), inset 0 -3px 0 #5C7CFA;
+    color:var(--forest)!important;
+    background:#FFFFFF!important;
+    border-color:rgba(255,255,255,.7)!important;
+    box-shadow:0 9px 20px rgba(12,35,28,.18), inset 0 -4px 0 var(--green)!important;
 }
 .stTabs [data-baseweb="tab-highlight"], .stTabs [data-baseweb="tab-border"] { display:none!important; }
 
-/* Labels & Sections */
-.mh-label { font-family:var(--mono); font-size:.78rem; letter-spacing:.18em; color:var(--muted); margin:2px 0 8px 0; text-transform:uppercase; }
-.mh-rule { border:none; border-top:1px solid var(--border); margin:22px 0 18px 0; }
-.mh-section-title { margin:0; color:#1E293B; }
-.mh-section-note { color:#667085; font-size:.95rem; margin:.35rem 0 0; }
+/* ---------- SECTION HEADERS ---------- */
+.mh-section-head {
+    display:flex;
+    align-items:flex-start;
+    gap:13px;
+    margin:2px 0 16px;
+}
+.mh-step {
+    width:38px;
+    height:38px;
+    flex:0 0 38px;
+    border-radius:12px;
+    background:var(--green-soft);
+    color:var(--green-dark);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-family:var(--mono);
+    font-weight:800;
+    border:1px solid #CBEADB;
+}
+.mh-section-title { margin:0!important; color:#17231F; font-size:1.38rem; line-height:1.2; }
+.mh-section-note { color:var(--muted); font-size:.94rem; margin:.3rem 0 0; }
+.mh-label { font-family:var(--mono); font-size:.75rem; letter-spacing:.16em; color:#66776F; margin:6px 0 8px; text-transform:uppercase; }
+.mh-rule { border:none; border-top:1px solid var(--line); margin:26px 0 22px; }
+
+/* ---------- MAP / LOCATION ---------- */
+.mh-map-wrap {
+    border:1px solid var(--line);
+    border-radius:20px;
+    overflow:hidden;
+    box-shadow:0 10px 26px rgba(27,66,53,.08);
+    background:#FFFFFF;
+}
 .mh-chiprow { display:flex; flex-wrap:wrap; gap:10px; margin-top:10px; }
 .mh-chip {
-    display:inline-flex; align-items:center; gap:8px; background:#FFFFFF; border:1px solid var(--border);
-    padding:12px 18px; min-height:54px; border-radius:999px; color:#344054; font-size:1rem; box-shadow:0 2px 10px rgba(15,23,42,.04);
+    display:inline-flex;
+    align-items:center;
+    gap:8px;
+    background:#FFFFFF;
+    border:1px solid #D7E3DD;
+    padding:10px 15px;
+    min-height:48px;
+    border-radius:14px;
+    color:#405148;
+    font-size:.95rem;
+    box-shadow:0 3px 10px rgba(27,66,53,.04);
 }
-.mh-chip strong { color:#0F172A; }
-.mh-map-wrap {
-    border:1px solid var(--border); border-radius:20px; overflow:hidden; box-shadow:0 10px 24px rgba(15,23,42,.07); background:#FFF;
+.mh-chip strong { color:#173A2F; }
+
+/* ---------- PROPERTY TYPE ---------- */
+div[class*="st-key-btn_"] button[kind="secondary"],
+div[class*="st-key-btn_"] button[kind="primary"] {
+    min-height:82px!important;
+    border-radius:17px!important;
+    white-space:pre-line!important;
+    line-height:1.24!important;
+    padding:9px 5px!important;
+    font-weight:650!important;
+    font-size:.76rem!important;
+    text-align:center!important;
+    transition:all .16s ease!important;
 }
-.mh-map-tip {
-    background:linear-gradient(180deg, #FFFFFF 0%, #F9FBFF 100%);
-    border:1px solid var(--border); border-radius:14px; padding:12px 14px; color:#475467;
-    font-size:.92rem; margin-bottom:12px;
+div[class*="st-key-btn_"] button[kind="secondary"] {
+    background:#FFFFFF!important;
+    color:#27352F!important;
+    border:1px solid #D7E3DD!important;
+    box-shadow:0 5px 14px rgba(27,66,53,.05)!important;
 }
-.mh-map-tip b { color:#1D2939; }
+div[class*="st-key-btn_"] button[kind="secondary"]:hover {
+    background:var(--green-pale)!important;
+    border-color:#9ED3BB!important;
+    color:var(--green-dark)!important;
+    transform:translateY(-1px);
+}
+div[class*="st-key-btn_"] button[kind="primary"] {
+    background:linear-gradient(180deg, #3B9B75 0%, var(--green) 100%)!important;
+    color:#FFFFFF!important;
+    border:1px solid var(--green)!important;
+    box-shadow:0 9px 18px rgba(47,143,104,.20)!important;
+}
+div[class*="st-key-btn_"] button p {
+    margin:0!important;
+    white-space:pre-line!important;
+    overflow-wrap:anywhere!important;
+}
+
+/* ---------- TENURE PILLS ---------- */
+div[data-testid="stVerticalBlock"]:has(.tenure-anchor) div[role="radiogroup"] {
+    display:flex!important;
+    flex-wrap:wrap!important;
+    gap:10px!important;
+}
+div[data-testid="stVerticalBlock"]:has(.tenure-anchor) div[role="radiogroup"] > label {
+    background:#FFFFFF!important;
+    border:1px solid #D7E3DD!important;
+    border-radius:999px!important;
+    min-height:48px!important;
+    padding:9px 15px!important;
+    display:flex!important;
+    align-items:center!important;
+    box-shadow:0 4px 12px rgba(27,66,53,.04)!important;
+}
+div[data-testid="stVerticalBlock"]:has(.tenure-anchor) div[role="radiogroup"] > label:has(input:checked) {
+    border-color:var(--green)!important;
+    background:var(--green-soft)!important;
+    box-shadow:0 6px 16px rgba(47,143,104,.14)!important;
+}
+div[data-testid="stVerticalBlock"]:has(.tenure-anchor) div[role="radiogroup"] p {
+    font-weight:650!important;
+    color:#33443C!important;
+}
+div[data-testid="stVerticalBlock"]:has(.tenure-anchor) div[role="radiogroup"] > label:has(input:checked) p {
+    color:var(--green-dark)!important;
+}
+input[type="radio"] { accent-color:var(--green)!important; }
+
+/* ---------- INPUTS / BUTTONS ---------- */
+div[data-testid="stNumberInputContainer"], div[data-baseweb="input"] {
+    background:#FFFFFF;
+    border:1px solid #D7E3DD;
+    border-radius:14px;
+}
+.stButton>button[kind="primary"] {
+    background:linear-gradient(180deg, #399973 0%, var(--green) 100%);
+    border-color:var(--green);
+    border-radius:14px;
+    min-height:50px;
+    font-weight:750;
+    box-shadow:0 10px 20px rgba(47,143,104,.18);
+}
+.stButton>button[kind="primary"]:hover {
+    background:var(--green-dark);
+    border-color:var(--green-dark);
+}
+button[kind="secondary"] { border-radius:14px!important; }
+
+/* ---------- PREDICTION RESULT ---------- */
 .mh-result {
-    background:linear-gradient(135deg, #15243A 0%, #1C2F50 100%);
-    border-radius:28px;
-    padding:30px 34px;
-    box-shadow:0 18px 40px rgba(24,49,83,.16);
+    position:relative;
+    overflow:hidden;
+    background:linear-gradient(135deg, #15372D 0%, #214A3D 64%, #2B5A49 100%);
+    border-radius:26px;
+    padding:30px 32px;
+    box-shadow:0 18px 42px rgba(22,70,52,.18);
     margin-top:22px;
-    border:1px solid rgba(255,255,255,.06);
+    border:1px solid rgba(255,255,255,.08);
+}
+.mh-result::after {
+    content:"";
+    position:absolute;
+    width:260px;
+    height:260px;
+    right:-110px;
+    top:-120px;
+    border-radius:50%;
+    background:rgba(114,207,166,.10);
+    pointer-events:none;
 }
 .mh-result-top {
+    position:relative;
+    z-index:1;
     display:flex;
     justify-content:space-between;
     align-items:flex-start;
     gap:20px;
 }
-.mh-result .cap { font-family:var(--mono); font-size:.78rem; letter-spacing:.18em; color:#A8BAD6; text-transform:uppercase; }
-.mh-result .price { font-size:4rem; line-height:1.02; font-weight:800; color:#FFFFFF; margin:14px 0 12px; }
-.mh-result .sub { color:#D8E2F2; font-size:1.05rem; }
-.mh-result .note { color:#A8BAD6; font-size:.9rem; margin-top:10px; }
+.mh-result .cap {
+    font-family:var(--mono);
+    font-size:.75rem;
+    letter-spacing:.18em;
+    color:#B8D8CB;
+    text-transform:uppercase;
+}
+.mh-result .price {
+    font-size:3.7rem;
+    line-height:1.02;
+    font-weight:820;
+    color:#FFFFFF;
+    margin:12px 0 10px;
+}
+.mh-result .sub { color:#D8EAE2; font-size:1.02rem; }
+.mh-result .note { margin-top:9px; color:#BFD8CD; font-size:.86rem; line-height:1.45; }
 .mh-result-badge {
-    min-width:220px; background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.1);
-    border-radius:20px; padding:16px 18px; box-shadow:inset 0 1px 0 rgba(255,255,255,.06);
+    min-width:220px;
+    background:rgba(255,255,255,.09);
+    border:1px solid rgba(255,255,255,.12);
+    border-radius:18px;
+    padding:15px 17px;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.05);
 }
-.mh-result-badge .kicker { font-family:var(--mono); font-size:.68rem; letter-spacing:.14em; color:#A8BAD6; text-transform:uppercase; }
-.mh-result-badge .model { color:#FFFFFF; font-size:1.22rem; font-weight:800; margin-top:6px; }
-.mh-result .rule { border-top:1px solid rgba(255,255,255,.14); margin:22px 0 18px; }
-.mh-stats { display:grid; grid-template-columns:repeat(3,1fr); gap:16px; }
-.mh-stat { background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.08); border-radius:18px; padding:16px 18px; }
-.mh-stats .k { font-family:var(--mono); font-size:.68rem; letter-spacing:.12em; color:#A8BAD6; text-transform:uppercase; margin-bottom:7px; }
-.mh-stats .v { font-family:var(--mono); font-size:1.08rem; font-weight:800; color:#FFFFFF; }
-.stButton>button[kind="primary"] {
-    background:var(--blue); border-color:var(--blue); border-radius:14px; min-height:48px; box-shadow:0 10px 20px rgba(79,111,234,.18);
+.mh-result-badge .kicker {
+    font-family:var(--mono);
+    font-size:.66rem;
+    letter-spacing:.13em;
+    color:#B8D8CB;
+    text-transform:uppercase;
 }
-.stButton>button[kind="primary"]:hover { background:var(--blue-dark); border-color:var(--blue-dark); }
-.mh-empty { background:#FFFFFF; border:1px dashed #CFD8E6; border-radius:16px; padding:52px 24px; text-align:center; color:var(--muted); box-shadow:0 4px 18px rgba(15,23,42,.05); margin-top:20px;}
+.mh-result-badge .model { color:#FFFFFF; font-size:1.16rem; font-weight:800; margin-top:6px; }
+.mh-result .rule { border-top:1px solid rgba(255,255,255,.14); margin:22px 0 17px; }
+.mh-stats { position:relative; z-index:1; display:grid; grid-template-columns:repeat(3,1fr); gap:14px; }
+.mh-stat {
+    background:rgba(255,255,255,.065);
+    border:1px solid rgba(255,255,255,.09);
+    border-radius:16px;
+    padding:15px 17px;
+}
+.mh-stats .k {
+    font-family:var(--mono);
+    font-size:.66rem;
+    letter-spacing:.12em;
+    color:#B8D8CB;
+    text-transform:uppercase;
+    margin-bottom:6px;
+}
+.mh-stats .v { font-family:var(--mono); font-size:1.04rem; font-weight:800; color:#FFFFFF; }
+.mh-empty {
+    background:#FFFFFF;
+    border:1px dashed #BCD9CC;
+    border-radius:20px;
+    padding:42px 24px;
+    text-align:center;
+    color:#687A72;
+    box-shadow:0 5px 18px rgba(27,66,53,.05);
+    margin-top:20px;
+}
+.mh-empty .icon { font-size:1.7rem; color:var(--green); margin-bottom:7px; }
 
-/* Custom Tenure Radio Pills layout */
-div[role="radiogroup"] { gap: 15px; }
-div[data-testid="stVerticalBlock"]:has(.tenure-anchor) div[role="radiogroup"] {
-    display:flex !important;
-    flex-wrap:wrap !important;
-    gap:12px !important;
-}
-div[data-testid="stVerticalBlock"]:has(.tenure-anchor) div[role="radiogroup"] > label {
-    background:#FFFFFF !important;
-    border:1px solid var(--border) !important;
-    border-radius:999px !important;
-    min-height:46px !important;
-    padding:8px 14px !important;
-    display:flex !important;
-    align-items:center !important;
-    box-shadow:0 4px 12px rgba(15,23,42,.04);
-}
-div[data-testid="stVerticalBlock"]:has(.tenure-anchor) div[role="radiogroup"] > label:has(input:checked) {
-    border-color:#4F6FEA !important;
-    background:#EEF3FF !important;
-    box-shadow:0 6px 16px rgba(79,111,234,.14);
-}
-div[data-testid="stVerticalBlock"]:has(.tenure-anchor) div[role="radiogroup"] p {
-    font-weight:600 !important;
-    color:#334155 !important;
-}
-div[data-testid="stVerticalBlock"]:has(.tenure-anchor) div[role="radiogroup"] > label:has(input:checked) p {
-    color:#2744B2 !important;
-}
-
-/* Property selector: direct-click buttons, no overlay / no empty box */
-div[class*="st-key-btn_"] button[kind="secondary"],
-div[class*="st-key-btn_"] button[kind="primary"] {
-    min-height: 82px !important;
-    border-radius: 18px !important;
-    white-space: pre-line !important;
-    line-height: 1.28 !important;
-    padding: 9px 5px !important;
-    font-weight: 650 !important;
-    font-size: .76rem !important;
-    text-align: center !important;
-    box-shadow: 0 6px 18px rgba(15,23,42,.06) !important;
-}
-
-div[class*="st-key-btn_"] button[kind="secondary"] {
-    background: #FFFFFF !important;
-    color: #1F2937 !important;
-    border: 1px solid #D8DFEB !important;
-}
-
-div[class*="st-key-btn_"] button[kind="secondary"]:hover {
-    border-color: #A7B8F8 !important;
-    color: #2744B2 !important;
-    transform: translateY(-1px);
-}
-
-div[class*="st-key-btn_"] button[kind="primary"] {
-    background: linear-gradient(180deg, #5A78EC 0%, #4B66DF 100%) !important;
-    color: #FFFFFF !important;
-    border: none !important;
-}
-
-
-/* Keep all property types on one clean horizontal row */
-div[class*="st-key-btn_"] button p {
-    margin:0 !important;
-    white-space:pre-line !important;
-    overflow-wrap:anywhere !important;
-}
-
-/* Neat inputs */
-div[data-testid="stNumberInputContainer"], div[data-baseweb="input"] {
-    background:#FFFFFF; border:1px solid var(--border); border-radius:14px; padding:2px 6px;
-}
-
-button[kind="secondary"] {
-    border-radius: 14px !important;
-}
-
-
+/* ---------- FOOTER ---------- */
 .mh-footer {
-    margin-top:34px;
+    margin-top:36px;
     padding:18px 22px;
     border-radius:20px;
-    background:linear-gradient(135deg, #172944 0%, #223A61 100%);
-    color:#DCE6F7;
+    background:linear-gradient(135deg, var(--forest) 0%, var(--forest-2) 72%, #315E4F 100%);
+    color:#DCEAE4;
     display:flex;
     align-items:center;
     justify-content:space-between;
     gap:18px;
-    box-shadow:0 12px 28px rgba(20,36,60,.12);
+    box-shadow:0 13px 30px rgba(22,52,43,.14);
     border:1px solid rgba(255,255,255,.07);
+    border-top:3px solid var(--green);
 }
 .mh-footer .brand { color:#FFFFFF; font-weight:800; letter-spacing:.01em; }
-.mh-footer .sub { color:#AFC0DA; font-size:.86rem; }
+.mh-footer .sub { color:#BFD2CA; font-size:.84rem; }
 
-@media (max-width: 900px) {
+@media (max-width:900px) {
+    .stTabs [role="tablist"] { flex-wrap:wrap!important; }
+    .stTabs [role="tablist"]::before { width:100%; min-width:0; }
     .mh-stats { grid-template-columns:1fr; }
     .mh-chip { width:100%; justify-content:center; }
     .mh-result-top { flex-direction:column; }
@@ -428,6 +716,14 @@ button[kind="secondary"] {
 @st.cache_data(show_spinner=False)
 def load_data():
     return pd.read_csv(DATA_PATH)
+
+@st.cache_data(show_spinner=False)
+def load_map_data():
+    raw = pd.read_csv(MAP_DATA_PATH, usecols=["State", "Area"])
+    raw["State"] = raw["State"].astype("string").str.strip().str.replace(r"\s+", " ", regex=True)
+    raw["Area"] = raw["Area"].astype("string").str.strip().str.replace(r"\s+", " ", regex=True)
+    raw = raw.dropna(subset=["State", "Area"]).drop_duplicates(["State", "Area"])
+    return raw.reset_index(drop=True)
 
 @st.cache_data(show_spinner=False)
 def load_results():
@@ -448,8 +744,8 @@ def get_area_coords(area_name: str, state_name: str):
         try:
             geolocator = Nominatim(user_agent="mh_estimator", timeout=4)
             for query in (
-                f"{area_name} District, {state_name}, Malaysia",
                 f"{area_name}, {state_name}, Malaysia",
+                f"{area_name} District, {state_name}, Malaysia",
             ):
                 loc = geolocator.geocode(query, country_codes="my")
                 if loc:
@@ -494,37 +790,54 @@ def get_property_label(ptype: str) -> str:
     return f"{get_property_icon(ptype)}\n{ptype}"
 
 @st.cache_data(show_spinner=False)
-def get_areas_for_state(data: pd.DataFrame, state_name: str):
-    dataset_areas = {
-        display_name(a)
-        for a in data[data["State"] == state_name]["Area_Clean"].dropna().unique()
-    }
-    official_areas = set(OFFICIAL_DISTRICTS.get(state_name, []))
-    special_areas = set(SPECIAL_DISPLAY_AREAS.get(state_name, []))
-
-    # DOSM represents Perlis and the 3 Federal Territories as their own district.
-    # When a more useful official/local sub-area list exists, do not show the
-    # redundant state-name pin on the map unless it is explicitly in the dataset.
-    if special_areas:
-        official_areas.discard(state_name)
-        dataset_areas.discard(state_name)
-
-    return sorted(dataset_areas | official_areas | special_areas)
+def get_dataset_areas_for_state(map_data: pd.DataFrame, state_name: str):
+    return sorted(
+        map_data.loc[map_data["State"] == state_name, "Area"]
+        .dropna()
+        .astype(str)
+        .unique()
+    )
 
 @st.cache_data(show_spinner=False)
-def get_dataset_areas_for_state(data: pd.DataFrame, state_name: str):
-    return {
-        display_name(a)
-        for a in data[data["State"] == state_name]["Area_Clean"].dropna().unique()
-    }
+def get_areas_for_state(map_data: pd.DataFrame, state_name: str):
+    areas = set(get_dataset_areas_for_state(map_data, state_name))
+    areas.update(OFFICIAL_DISTRICTS.get(state_name, []))
+    areas.update(SPECIAL_DISPLAY_AREAS.get(state_name, []))
+    return sorted(areas)
 
-def resolve_model_area(data: pd.DataFrame, state_name: str, selected_area: str) -> str:
-    dataset_areas = get_dataset_areas_for_state(data, state_name)
-    if selected_area in dataset_areas:
-        return selected_area
-    if state_name in dataset_areas:
-        return state_name
-    return selected_area
+def get_area_source(map_data: pd.DataFrame, state_name: str, area_name: str) -> str:
+    dataset_areas = set(get_dataset_areas_for_state(map_data, state_name))
+    in_dataset = area_name in dataset_areas
+    in_districts = area_name in set(OFFICIAL_DISTRICTS.get(state_name, []))
+    in_special = area_name in set(SPECIAL_DISPLAY_AREAS.get(state_name, []))
+
+    if in_dataset and in_districts:
+        return "Dataset locality · Official district"
+    if in_dataset:
+        return "Housing dataset locality"
+    if in_districts:
+        return "Official administrative district"
+    if in_special:
+        return SPECIAL_AREA_LABELS.get(state_name, "Official local area")
+    return "Malaysia map area"
+
+def is_dataset_area(map_data: pd.DataFrame, state_name: str, area_name: str) -> bool:
+    return area_name in set(get_dataset_areas_for_state(map_data, state_name))
+
+@st.cache_data(show_spinner=False)
+def map_coverage_summary(map_data: pd.DataFrame):
+    dataset_pairs = map_data[["State", "Area"]].drop_duplicates()
+    nationwide_pairs = []
+    for state_name in STATE_COORDS:
+        for area_name in get_areas_for_state(map_data, state_name):
+            nationwide_pairs.append((state_name, area_name))
+    return {
+        "states": sorted(STATE_COORDS),
+        "state_count": len(STATE_COORDS),
+        "dataset_pairs": int(len(dataset_pairs)),
+        "official_district_units": int(sum(len(v) for v in OFFICIAL_DISTRICTS.values())),
+        "nationwide_state_area_pairs": int(len(set(nationwide_pairs))),
+    }
 
 # ---------------------------------------------------------------------------
 # LOGIC CONTROLLERS
@@ -536,7 +849,7 @@ def reset_location_state():
     st.session_state["map_zoom"] = 6
     st.session_state["address_input"] = "" 
 
-def analyze_address(data, available_states):
+def analyze_address(map_data, available_states):
     addr = st.session_state.get("address_input", "").lower()
     if not addr: return
 
@@ -558,8 +871,10 @@ def analyze_address(data, available_states):
                     if st_name.lower() in raw_state:
                         matched_state = st_name
                         break
-                if raw_area:
-                    matched_area = display_name(raw_area)
+                if raw_area and matched_state:
+                    valid_areas = get_areas_for_state(map_data, matched_state)
+                    normalized = {clean_area_name(a): a for a in valid_areas}
+                    matched_area = normalized.get(clean_area_name(raw_area))
         except: pass
 
     if not matched_state:
@@ -569,7 +884,7 @@ def analyze_address(data, available_states):
                 break
                 
     if matched_state and not matched_area:
-        valid_areas = get_areas_for_state(data, matched_state)
+        valid_areas = get_areas_for_state(map_data, matched_state)
         for a in sorted(valid_areas, key=len, reverse=True):
             if a.lower() in addr:
                 matched_area = a
@@ -591,7 +906,7 @@ def analyze_address(data, available_states):
 # ---------------------------------------------------------------------------
 # PAGE 1 - PREDICTION INTERFACE
 # ---------------------------------------------------------------------------
-def prediction_page(data, results):
+def prediction_page(data, results, map_data):
     recommended = results.iloc[0]["Model"]
     available_states = sorted(STATE_COORDS.keys())
     ptypes = sorted(data["Primary_Type"].unique())
@@ -604,12 +919,17 @@ def prediction_page(data, results):
     current_state = st.session_state["selected_state"]
     current_area = st.session_state["selected_area"]
     
-    st.markdown("<h3 class='mh-section-title'>📍 1. Location Selection</h3>", unsafe_allow_html=True)
-    st.markdown("<p class='mh-section-note'>Select your location directly from the map. First choose a state, then the map zooms in so you can choose the area.</p>", unsafe_allow_html=True)
+    st.markdown(
+        "<div class='mh-section-head'><div class='mh-step'>1</div><div>"
+        "<h3 class='mh-section-title'>Location Selection</h3>"
+        "<p class='mh-section-note'>Choose a state, then select an area from the nationwide Malaysia coverage.</p>"
+        "</div></div>",
+        unsafe_allow_html=True,
+    )
 
     st.text_input("Enter your address or postcode to auto-detect location, or click the map below:", 
                   placeholder="e.g. 45400 or Sekinchan, Selangor",
-                  key="address_input", on_change=analyze_address, args=(data, available_states))
+                  key="address_input", on_change=analyze_address, args=(map_data, available_states))
 
     map_center = st.session_state.get("map_center", [4.2105, 108.9758] if not current_state else STATE_COORDS.get(current_state, [4.2105, 108.9758]))
     map_zoom = st.session_state.get("map_zoom", 6 if not current_state else 9)
@@ -620,17 +940,15 @@ def prediction_page(data, results):
         for st_name in available_states:
             if st_name in STATE_COORDS:
                 folium.CircleMarker(
-                    location=STATE_COORDS[st_name], radius=11, color="#15243A", weight=2,
-                    fill=True, fill_color="#2F6FED", fill_opacity=0.8,
+                    location=STATE_COORDS[st_name], radius=11, color="#18392F", weight=2,
+                    fill=True, fill_color="#3E8169", fill_opacity=0.88,
                     tooltip=folium.Tooltip(f"<b>{st_name}</b> (Click to select state)", sticky=True),
                     popup=f"STATE:{st_name}"
                 ).add_to(m)
                 
     else:
-        # Keep every housing-dataset locality for model compatibility, then add
-        # official DOSM districts and the verified special sub-area lists for
-        # Perlis and the three Federal Territories.
-        areas_to_plot = set(get_areas_for_state(data, current_state))
+        # Nationwide coverage: dataset localities + official districts + special local subdivisions.
+        areas_to_plot = set(get_areas_for_state(map_data, current_state))
 
         if current_area:
             areas_to_plot.add(current_area)
@@ -641,32 +959,31 @@ def prediction_page(data, results):
             coords, is_approx = get_area_map_coords(disp_area, current_state)
             if coords:
                 is_sel = (disp_area == current_area)
-                is_special = disp_area in SPECIAL_DISPLAY_AREAS.get(current_state, [])
-                area_kind = SPECIAL_AREA_LABELS.get(current_state, "Area") if is_special else "Area"
-                pin_note = "Approximate map position · click to select" if is_approx else "Click to select"
+                area_kind = get_area_source(map_data, current_state, disp_area)
+                pin_note = "Approximate position · click to select" if is_approx else "Click to select"
                 folium.CircleMarker(
                     location=coords, radius=12 if is_sel else 8,
-                    color="#18875D" if is_sel else ("#98A2B3" if is_approx else "#C47A10"),
+                    color="#247653" if is_sel else ("#98A2B3" if is_approx else "#A86F24"),
                     weight=3 if is_sel else 2,
                     fill=True,
-                    fill_color="#10B981" if is_sel else ("#D0D5DD" if is_approx else "#F59E0B"),
+                    fill_color="#2F8F68" if is_sel else ("#D0D5DD" if is_approx else "#D9A04B"),
                     fill_opacity=0.9 if is_sel else 0.75,
                     tooltip=folium.Tooltip(f"<b>{disp_area}</b><br>{area_kind} · {pin_note}", sticky=True),
                     popup=f"AREA:{disp_area}"
                 ).add_to(marker_cluster)
 
     st.markdown("<div class='mh-map-wrap'>", unsafe_allow_html=True)
-    map_data = st_folium(m, height=470, use_container_width=True, key="malaysia_map")
+    map_event = st_folium(m, height=470, use_container_width=True, key="malaysia_map")
     st.markdown("</div>", unsafe_allow_html=True)
     st.markdown(
         "<div style='font-size:.82rem;color:#667085;margin-top:6px;'>"
-        "<b>Map pins:</b> 🔵 State &nbsp; 🟠 Verified area &nbsp; ⚪ Approximate pin if live geocoding is unavailable &nbsp; 🟢 Selected area"
+        "<b>Map pins:</b> 🟢 State &nbsp; 🟠 Verified area &nbsp; ⚪ Approximate position &nbsp; ✅ Selected area"
         "</div>",
         unsafe_allow_html=True,
     )
     
-    if map_data and map_data.get("last_object_clicked_popup"):
-        popup_txt = map_data["last_object_clicked_popup"]
+    if map_event and map_event.get("last_object_clicked_popup"):
+        popup_txt = map_event["last_object_clicked_popup"]
         if popup_txt.startswith("STATE:"):
             clicked_st = popup_txt.split(":")[1]
             st.session_state["selected_state"] = clicked_st
@@ -690,8 +1007,13 @@ def prediction_page(data, results):
         st.button("Reset Location", use_container_width=True, on_click=reset_location_state)
 
     st.markdown('<hr class="mh-rule">', unsafe_allow_html=True)
-    st.markdown("<h3 class='mh-section-title'>🏡 2. Property Details</h3>", unsafe_allow_html=True)
-    st.markdown("<p class='mh-section-note'>Choose a property type, then set the tenure and median price per square foot.</p>", unsafe_allow_html=True)
+    st.markdown(
+        "<div class='mh-section-head'><div class='mh-step'>2</div><div>"
+        "<h3 class='mh-section-title'>Property Details</h3>"
+        "<p class='mh-section-note'>Choose the property type and tenure, then enter the independently known median price per square foot.</p>"
+        "</div></div>",
+        unsafe_allow_html=True,
+    )
 
     # ---------------- DIRECT-CLICK PROPERTY TYPE CARDS ----------------
     # One horizontal row; selection logic remains the same.
@@ -731,8 +1053,7 @@ def prediction_page(data, results):
 
         model = load_model(recommended)
         from area_preprocessing import create_area_key
-        model_area = resolve_model_area(data, current_state, current_area)
-        area_key = create_area_key(current_state, model_area)
+        area_key = create_area_key(current_state, current_area)
         ptype = st.session_state["selected_ptype"]
         transactions = int(round(data["Transactions"].median()))
 
@@ -745,10 +1066,11 @@ def prediction_page(data, results):
             prediction = float(model.predict(features)[0])
 
         metrics = results[results["Model"] == recommended].iloc[0]
-        model_area_note = ""
-        if model_area != current_area:
-            model_area_note = f'<div class="note">Prediction used nearest dataset-supported area: <b>{model_area}</b> in {current_state}.</div>'
-
+        dataset_supported = is_dataset_area(map_data, current_state, current_area)
+        coverage_note = "" if dataset_supported else (
+            '<div class="note">This location is part of the nationwide Malaysia map but is not directly present in the 2025 housing dataset. '
+            'The model therefore uses its unseen / infrequent-area handling for this estimate.</div>'
+        )
         st.markdown(f'''
         <div class="mh-result" id="estimate-result">
             <div class="mh-result-top">
@@ -756,7 +1078,7 @@ def prediction_page(data, results):
                     <div class="cap">Estimated median price</div>
                     <div class="price">RM {prediction:,.0f}</div>
                     <div class="sub">{current_area}, {current_state} · {ptype} · {tenure}</div>
-                    {model_area_note}
+                    {coverage_note}
                 </div>
                 <div class="mh-result-badge">
                     <div class="kicker">Recommended model</div>
@@ -767,15 +1089,15 @@ def prediction_page(data, results):
             <div class="mh-stats">
                 <div class="mh-stat"><div class="k">Test MAE</div><div class="v">RM {metrics['MAE_test']/1000:,.1f}K</div></div>
                 <div class="mh-stat"><div class="k">Test R²</div><div class="v">{metrics['R2_test']:.3f}</div></div>
-                <div class="mh-stat"><div class="k">Median PSF Used</div><div class="v">RM {psf:,.0f}</div></div>
+                <div class="mh-stat"><div class="k">Market PSF Input</div><div class="v">RM {psf:,.0f}</div></div>
             </div>
         </div>''', unsafe_allow_html=True)
 
     else:
         st.markdown(
             '<div class="mh-empty"><div class="icon">⌂</div>'
-            '<b>Your estimate will appear here.</b>'
-            'Select location and property details above, then predict.</div>',
+            '<b>Your estimate will appear here.</b><br>'
+            '<span>Select location and property details above, then generate the estimate.</span></div>',
             unsafe_allow_html=True
         )
 
@@ -829,20 +1151,25 @@ def model_report_page(results):
 # MAIN
 # ---------------------------------------------------------------------------
 def main():
-    missing = [p.name for p in [DATA_PATH, RESULTS_PATH] if not p.exists()]
+    missing = [p.name for p in [DATA_PATH, MAP_DATA_PATH, RESULTS_PATH] if not p.exists()]
     if missing:
         st.error("Missing required files: " + ", ".join(missing)); st.stop()
-    data = load_data(); results = load_results()
+    data = load_data(); map_data = load_map_data(); results = load_results()
+    coverage = map_coverage_summary(map_data)
+    missing_state_coords = sorted(set(coverage["states"]) - set(STATE_COORDS))
+    if missing_state_coords:
+        st.error("Missing map coordinates for: " + ", ".join(missing_state_coords)); st.stop()
+
     pred, insights, report = st.tabs(["Price Prediction", "Market Insights", "Model Report"])
-    with pred: prediction_page(data, results)
+    with pred: prediction_page(data, results, map_data)
     with insights: insights_page(data)
     with report: model_report_page(results)
 
     st.markdown(
         "<div class='mh-footer'>"
         "<div><div class='brand'>⌂ Malaysia Housing Estimator</div>"
-        "<div class='sub'>Interactive location-based housing price estimation</div></div>"
-        "<div class='sub'>Malaysia · 2026</div>"
+        "<div class='sub'>Nationwide Malaysia map · 2025 housing-market price estimation</div></div>"
+        "<div class='sub'>BMDS2003 · Data Science Prototype</div>"
         "</div>",
         unsafe_allow_html=True,
     )
